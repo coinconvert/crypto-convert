@@ -1,0 +1,30 @@
+{
+  "name": "crypto-convert",
+  "version": "1.0.0",
+  "description": "Instantly convert cryptocurrency and get price information",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elis-k/crypto-convert.git"
+  },
+  "keywords": [
+    "cryptocurrency",
+    "crypto",
+    "convert",
+    "price",
+    "exchange",
+    "api"
+  ],
+  "author": "Elis",
+  "license": "GNU GPLv3",
+  "bugs": {
+    "url": "https://github.com/elis-k/crypto-convert/issues"
+  },
+  "homepage": "https://github.com/elis-k/crypto-convert#readme",
+  "dependencies": {
+    "wrape": "^1.2.51"
+  }
+}
