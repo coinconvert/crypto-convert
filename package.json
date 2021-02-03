@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/elis-k/crypto-convert.git"
+    "url": "git+https://github.com/coinconvert/crypto-convert.git"
   },
   "keywords": [
     "cryptocurrency",
@@ -28,7 +28,7 @@
   "author": "Elis",
   "license": "GNU GPLv3",
   "bugs": {
-    "url": "https://github.com/elis-k/crypto-convert/issues"
+    "url": "https://github.com/coinconvert/crypto-convert/issues"
   },
   "homepage": "https://oh.gold",
   "dependencies": {
