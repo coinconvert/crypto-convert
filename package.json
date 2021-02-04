@@ -1,10 +1,10 @@
 {
   "name": "crypto-convert",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Instantly convert cryptocurrency and get price information",
-  "main": "src/index.js",
+  "main": "dist/crypto-convert.node.min.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "webpack --config webpack.config.js"
   },
   "repository": {
     "type": "git",
@@ -25,6 +25,12 @@
   },
   "homepage": "https://github.com/elis-k/crypto-convert#readme",
   "dependencies": {
+    "form-data": "^3.0.0",
+    "node-fetch": "^2.6.1",
     "wrape": "^1.2.51"
+  },
+  "devDependencies": {
+    "webpack": "^5.20.2",
+    "webpack-cli": "^4.5.0"
   }
 }

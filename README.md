@@ -17,7 +17,7 @@ Instantly convert cryptocurrency and get price information.
 ```javascript
 const convert = require("crypto-convert");
 
-convert.BTC.USD(1); 
+convert.BTC.USD(1);
 convert.ETH.JPY(255);
 convert.LINK.LTC(5);
 convert.USD.CRO(100);
@@ -30,3 +30,14 @@ new convert.from("BTC").to("USD").amount(1);
 
 ## Installation
 `npm i crypto-convert`
+
+
+## For Browsers
+```html
+<script type="text/javascript" src="https://coinconvert.net/assets/js/crypto-convert.min.js"></script>
+
+<script>
+	console.log(convert.BTC.USD(1));
+</script>
+``` 
+

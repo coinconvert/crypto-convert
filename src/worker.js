@@ -57,7 +57,26 @@ Prices.prototype.lists = async function () {
 	return this;
 }
 
-Prices.prototype.run = function () {
+Prices.prototype.browserTicker = async function () {
+	var prices = await api.coinconvert.ticker();
+	this.data = prices;
+	return this;
+}
+
+Prices.prototype.browserList = async function () {
+	var lists = await api.coinconvert.list();
+	this.list = lists;
+	return this;
+}
+
+Prices.prototype.runBrowser = function () {
+	this.browserList();
+	this.browserTicker();
+	this.crypto_worker = setInterval(this.browserTicker.bind(this), this.options.crypto_interval);
+	return this;
+}
+
+Prices.prototype.runServer = function () {
 	this.lists();
 	this.crypto();
 	this.fiat();
@@ -66,6 +85,14 @@ Prices.prototype.run = function () {
 
 	return this;
 }
+
+Prices.prototype.run = function () {
+	if(typeof window !== "undefined" && window.navigator && window.document) {
+		return this.runBrowser();
+	}
+	return this.runServer();
+}
+
 
 Prices.prototype.stop = function () {
 	clearInterval(this.crypto_worker);

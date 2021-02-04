@@ -148,6 +148,24 @@ const endpoints = {
 				return full;
 			}
 		}
+	},
+	coinconvert: {
+		ticker: {
+			method: "GET",
+			path: "https://api.coinconvert.net/ticker",
+			params: {},
+			response: function (res) {
+				return res.json || false;
+			}
+		},
+		list: {
+			method: "GET",
+			path: "https://api.coinconvert.net/list",
+			params: {},
+			response: function (res) {
+				return res.json || false;
+			}
+		}
 	}
 }
 
