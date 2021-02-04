@@ -41,3 +41,9 @@ new convert.from("BTC").to("USD").amount(1);
 </script>
 ``` 
 
+## API
+
+Free public API, up to 50 req/s.
+
+`https://api.coinconvert.net/convert/btc/usd?amount=1`
+
