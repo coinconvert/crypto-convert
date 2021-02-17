@@ -12,24 +12,31 @@ Instantly convert cryptocurrency and get price information.
 - Any pair can be converted, be it Crypto -> Crypto or Fiat -> Crypto.
 - Instant convert, no slow promises.
 
-## Usage
-
-```javascript
-const convert = require("crypto-convert");
-
-convert.BTC.USD(1);
-convert.ETH.JPY(255);
-convert.LINK.LTC(5);
-convert.USD.CRO(100);
-
-//More readable syntax
-new convert.from("BTC").to("USD").amount(1);
-
-```
-
 ## Installation
 `npm i crypto-convert`
 
+
+## Usage
+```javascript
+const convert = require("crypto-convert");
+
+(async function(){
+
+	//Cache is not yet loaded on application start
+	if(!convert.isReady){
+		await convert.ready();
+	}
+
+	convert.BTC.USD(1);
+	convert.ETH.JPY(255);
+	convert.LINK.LTC(5);
+	convert.USD.CRO(100);
+
+	//More readable syntax
+	new convert.from("BTC").to("USD").amount(1);
+})();
+
+```
 
 ## For Browsers
 ```html
@@ -40,5 +47,26 @@ new convert.from("BTC").to("USD").amount(1);
 </script>
 ``` 
 
+## Configuration
 
+```javascript
+const convert = require("crypto-convert");
+
+convert.set({
+	crypto_interval: 5000, //Crypto cache update interval, default every 5 seconds
+	fiat_interval: (60 * 1e3 * 60) //Fiat cache update interval, default every 1 hour
+	binance: true, //Use binance rates
+	bitfinex: true, //Use bitfinex rates
+	okex: true, //Use okex rates
+	onUpdate: (tickers)=> {}, //Call Hook on every crypto update	
+});
+
+```
+
+
+## API
+
+Free public API, up to 50 req/s.
+
+`https://api.coinconvert.net/convert/btc/usd?amount=1`
 
