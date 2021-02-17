@@ -27,7 +27,6 @@ new convert.from("BTC").to("USD").amount(1);
 
 ```
 
-
 ## Installation
 `npm i crypto-convert`
 
@@ -40,4 +39,6 @@ new convert.from("BTC").to("USD").amount(1);
 	console.log(convert.BTC.USD(1));
 </script>
 ``` 
+
+
 

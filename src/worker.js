@@ -2,6 +2,9 @@ const api = require("./api");
 
 function Prices(options = {}) {
 
+	this.lastUpdate = false;
+	this.isReady = false;
+	
 	this.list = {
 		"crypto": [
 			"BTC", "ETH", "USDT", "XRP", "DOT", "ADA", "LTC", "LINK", "BCH", "BNB", "XLM", "USDC", "UNI", "WBTC", "DOGE", "AAVE", "BSV", "EOS", "XMR", "XEM", "TRX", "XTZ", "THETA", "SNX", "ATOM", "VET", "SUSHI", "DAI", "NEO", "MKR", "COMP", "CRO", "HT", "BUSD", "SOL", "LEO", "MIOTA", "FTT", "CEL", "EGLD", "DASH", "UMA", "AVAX", "FIL", "ZEC", "LUNA", "GRT", "YFI", "KSM", "REV", "ETC", "DCR", "ALGO", "ZIL", "CHSB", "WAVES", "NEAR", "LRC", "HBAR", "REN", "OMG", "NEXO", "RUNE", "RENBTC", "VGX", "CELO", "CRV", "1INCH", "ZRX", "ONT", "HEDG", "BAT", "NANO", "HUSD", "ICX", "BTT", "QNT", "DGB", "SC", "TUSD", "ZEN", "OKB", "RSR", "ALPHA", "QTUM", "STX", "FTM", "AMPL", "FUN", "KNC", "ENJ", "IOST", "MANA", "XVG", "UST", "OCEAN", "BTCB", "BNT", "PAX", "BAND"
@@ -20,11 +23,7 @@ function Prices(options = {}) {
 		}
 	};
 	
-	this.options = {
-		"multiple_fiats": true,
-		"crypto_interval": options.crypto_interval || (5 * 1e3), //Every 5 seconds
-		"fiat_interval": options.fiat_interval || (60 * 1e3) * 60 * 1 //Every 1 hour
-	}
+	this.update(); //Set options
 
 	this.log = function () {
 		return false;
@@ -34,12 +33,36 @@ function Prices(options = {}) {
 	}
 }
 
+Prices.prototype.update = function (o) {
+	o = o || {};
+	this.options = {
+		"crypto_interval": isNaN(o.crypto_interval) ? (5 * 1e3) : Math.min(1000, o.crypto_interval), //Every 5 seconds
+		"fiat_interval": isNaN(o.fiat_interval) ? (60 * 1e3 * 60) : Math.min(5000, o.fiat_interval), //Every 1 hour
+		binance: o.hasOwnProperty('binance') ? o.binance : true,
+		okex: o.hasOwnProperty('okex') ? o.okex : true,
+		bitfinex: o.hasOwnProperty('bitfinex') ? o.bitfinex : true,
+		onUpdate: o.onUpdate
+	};
+
+	return this;
+}
+
 Prices.prototype.crypto = async function () {
-	this.log("Updating crypto...",this.data.crypto);
-	var binance = await api.binance.ticker() || {};
-	var bitfinex = await api.bitfinex.ticker() || {};
-	var okex = await api.okex.ticker() || {};
-	this.data.crypto = {...okex, ...bitfinex, ...binance };
+	this.log("Updating crypto...", this.data.crypto);
+	var binance = this.options.binance ? (await api.binance.ticker() || {}) : {};
+	var bitfinex = this.options.bitfinex ? (await api.bitfinex.ticker() || {}) : {};
+	var okex = this.options.okex ? (await api.okex.ticker() || {}) : {};
+
+	this.data.crypto = { ...okex, ...bitfinex, ...binance };
+
+	
+	if(Object.keys(binance).length > 0 || Object.keys(bitfinex).length > 0 || Object.keys(okex).length > 0) {
+		this.lastUpdate = (+ new Date());
+		if(typeof this.options.onUpdate === "function") {
+			this.options.onUpdate(this.data.crypto);
+		}
+	}
+
 	return this;
 }
 
@@ -69,17 +92,19 @@ Prices.prototype.browserList = async function () {
 	return this;
 }
 
-Prices.prototype.runBrowser = function () {
-	this.browserList();
-	this.browserTicker();
+Prices.prototype.runBrowser = async function () {
+	await this.browserList();
+	await this.browserTicker();
+	this.isReady = true;
 	this.crypto_worker = setInterval(this.browserTicker.bind(this), this.options.crypto_interval);
 	return this;
 }
 
-Prices.prototype.runServer = function () {
-	this.lists();
-	this.crypto();
-	this.fiat();
+Prices.prototype.runServer = async function () {
+	await this.lists();
+	await this.fiat();
+	await this.crypto();
+	this.isReady = true;
 	this.crypto_worker = setInterval(this.crypto.bind(this), this.options.crypto_interval);
 	this.fiat_worker = setInterval(this.fiat.bind(this), this.options.fiat_interval);
 
@@ -87,17 +112,27 @@ Prices.prototype.runServer = function () {
 }
 
 Prices.prototype.run = function () {
+	this.isRunning = true;
 	if(typeof window !== "undefined" && window.navigator && window.document) {
-		return this.runBrowser();
+		this.runBrowser();
+		return this;
 	}
-	return this.runServer();
+	this.runServer();
+	return this;
 }
 
 
 Prices.prototype.stop = function () {
 	clearInterval(this.crypto_worker);
 	clearInterval(this.fiat_worker);
+	this.isReady = false;
+	this.isRunning = false;
 	return this;
+}
+
+Prices.prototype.restart = function () {
+	return this.stop()
+		.run();
 }
 
 const PricesWorker = (new Prices()).run();

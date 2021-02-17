@@ -11,7 +11,6 @@ const coins = PricesWorker.list.crypto;
 const fiats = PricesWorker.list.fiat;
 
 
-
 function getPrice(coin,to='USD'){
 	var result = PricesWorker.data.crypto[coin + to];
 	if(!result){
@@ -23,7 +22,12 @@ function getPrice(coin,to='USD'){
 
 var exchangeWrap = function(){
 	var all_currencies = coins.concat(fiats);
-	var exchange = {}
+
+	var exchange = {
+		get isReady() {
+			return PricesWorker.isReady;
+		}
+	}
 	
 	var wrapper = function(coin,currency){
 		var coin = coin;
@@ -86,17 +90,34 @@ var exchangeWrap = function(){
 		return doExchange;
 	}
 
-	//Make Wrapper
-	for(i=0; i < all_currencies.length; i++){
-		var coin = all_currencies[i];
-		for(a=0; a < all_currencies.length; a++){
-			var currency = all_currencies[a];
-			if (!exchange[coin]) {
-				exchange[coin] = {};
+	var initialize = function () {
+		//Make Wrapper
+		for(i = 0; i < all_currencies.length; i++) {
+			var coin = all_currencies[i];
+			for(a = 0; a < all_currencies.length; a++) {
+				var currency = all_currencies[a];
+				if(!exchange[coin]) {
+					exchange[coin] = {};
+				}
+				exchange[coin][currency] = wrapper(coin, currency);
 			}
-			exchange[coin][currency] = wrapper(coin,currency);
 		}
+	}();
+
+	
+	exchange['set'] = function (options) {
+		PricesWorker.update(options).restart();
 	}
+
+	exchange['ready'] = async function () {
+		if(PricesWorker.isReady) {
+			return exchange;
+		}
+		await PricesWorker.crypto();
+		return exchange;
+	}
+
+	
 
 	//List
 	exchange['list'] = {
