@@ -54,11 +54,11 @@ const convert = require("crypto-convert");
 
 convert.set({
 	crypto_interval: 5000, //Crypto cache update interval, default every 5 seconds
-	fiat_interval: (60 * 1e3 * 60), //Fiat cache update interval, default every 1 hour
+	fiat_interval: (60 * 1e3 * 60) //Fiat cache update interval, default every 1 hour
 	binance: true, //Use binance rates
 	bitfinex: true, //Use bitfinex rates
 	okex: true, //Use okex rates
-	onUpdate: (tickers)=> {} //Call Hook on every crypto update	
+	onUpdate: (tickers)=> {}, //Call Hook on every crypto update	
 });
 
 ```
