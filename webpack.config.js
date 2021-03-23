@@ -18,7 +18,8 @@ module.exports = [
 
 		externals: {
 			'node-fetch': 'fetch',
-			'form-data': 'FormData'
+			'form-data': 'FormData',
+			'fs': 'fs'
 		},
 		resolve: {
 			extensions: [".js"],

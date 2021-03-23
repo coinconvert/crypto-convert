@@ -5,7 +5,8 @@ function Prices(options = {}) {
 
 	this.lastUpdate = false;
 	this.isReady = false;
-	
+	this.isBrowser = (typeof window !== "undefined" && window.navigator && window.document);
+
 	this.list = {
 		"crypto": [
 			"BTC", "ETH", "USDT", "XRP", "DOT", "ADA", "LTC", "LINK", "BCH", "BNB", "XLM", "USDC", "UNI", "WBTC", "DOGE", "AAVE", "BSV", "EOS", "XMR", "XEM", "TRX", "XTZ", "THETA", "SNX", "ATOM", "VET", "SUSHI", "DAI", "NEO", "MKR", "COMP", "CRO", "HT", "BUSD", "SOL", "LEO", "MIOTA", "FTT", "CEL", "EGLD", "DASH", "UMA", "AVAX", "FIL", "ZEC", "LUNA", "GRT", "YFI", "KSM", "REV", "ETC", "DCR", "ALGO", "ZIL", "CHSB", "WAVES", "NEAR", "LRC", "HBAR", "REN", "OMG", "NEXO", "RUNE", "RENBTC", "VGX", "CELO", "CRV", "1INCH", "ZRX", "ONT", "HEDG", "BAT", "NANO", "HUSD", "ICX", "BTT", "QNT", "DGB", "SC", "TUSD", "ZEN", "OKB", "RSR", "ALPHA", "QTUM", "STX", "FTM", "AMPL", "FUN", "KNC", "ENJ", "IOST", "MANA", "XVG", "UST", "OCEAN", "BTCB", "BNT", "PAX", "BAND"
@@ -24,7 +25,9 @@ function Prices(options = {}) {
 		}
 	};
 	
-	this._loadCache();
+	if(!this.isBrowser) {
+		this._loadCache();
+	}
 	this.update(); //Set options
 
 	this.log = function () {
@@ -133,7 +136,7 @@ Prices.prototype.runServer = async function () {
 
 Prices.prototype.run = function () {
 	this.isRunning = true;
-	if(typeof window !== "undefined" && window.navigator && window.document) {
+	if(this.isBrowser) {
 		this.runBrowser();
 		return this;
 	}

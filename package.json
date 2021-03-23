@@ -1,6 +1,6 @@
 {
   "name": "crypto-convert",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Instantly convert cryptocurrency and get price information",
   "main": "dist/crypto-convert.node.min.js",
   "scripts": {
