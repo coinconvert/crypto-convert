@@ -1,4 +1,5 @@
 const api = require("./api");
+const fs = require("fs");
 
 function Prices(options = {}) {
 
@@ -23,6 +24,7 @@ function Prices(options = {}) {
 		}
 	};
 	
+	this._loadCache();
 	this.update(); //Set options
 
 	this.log = function () {
@@ -63,6 +65,8 @@ Prices.prototype.crypto = async function () {
 		}
 	}
 
+	this._cache(); //Save local cache
+
 	return this;
 }
 
@@ -70,6 +74,7 @@ Prices.prototype.fiat = async function () {
 	this.log("Updating fiat...",this.data.fiat);
 	var fiat = await api.fiat.all();
 	this.data.fiat = fiat || this.data.fiat;
+	this._cache(); //Save local cache
 	return this;
 }
 
@@ -92,6 +97,20 @@ Prices.prototype.browserList = async function () {
 	return this;
 }
 
+Prices.prototype._cache = function (cb = ()=>{}) {
+	return fs.writeFile(__dirname + "/cache.json", JSON.stringify(this.data),cb);
+}
+
+Prices.prototype._loadCache = function () {
+	if (fs.existsSync(__dirname + "/cache.json")) {
+		var cache = JSON.parse(fs.readFileSync(__dirname + "/cache.json").toString('utf8'));
+		this.data = cache;
+		return true;
+	}
+	return false;
+}
+
+
 Prices.prototype.runBrowser = async function () {
 	await this.browserList();
 	await this.browserTicker();
@@ -104,6 +123,7 @@ Prices.prototype.runServer = async function () {
 	await this.lists();
 	await this.fiat();
 	await this.crypto();
+
 	this.isReady = true;
 	this.crypto_worker = setInterval(this.crypto.bind(this), this.options.crypto_interval);
 	this.fiat_worker = setInterval(this.fiat.bind(this), this.options.fiat_interval);
