@@ -1,5 +1,5 @@
   
-# Crypto-Convert
+# Crypto-Convert (Deprecated, needs maintenance)
 [![license](https://img.shields.io/github/license/elis-k/crypto-convert)](https://github.com/elis-k/crypto-convert/blob/master/LICENSE)
 [![npm](https://img.shields.io/npm/v/crypto-convert)](https://www.npmjs.com/package/crypto-convert)
 [![npm](https://img.shields.io/npm/dw/crypto-convert)](https://www.npmjs.com/package/crypto-convert)
