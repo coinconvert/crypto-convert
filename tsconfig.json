@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"module": "CommonJS",
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
+		"target": "ES6",
+		"moduleResolution": "node",
+		"sourceMap": true,
+		"outDir": "dist",
+        "declaration": true,
+		"noImplicitAny": false,
+        "noStrictGenericChecks": true,
+	},
+	"lib": [
+		"es2015"
+	],
+	"ts-node": {
+		"compilerOptions": {
+		  "module": "CommonJS"
+		}
+	}
+}

@@ -1,32 +1,38 @@
   
-# Crypto-Convert (Deprecated, needs maintenance)
-[![license](https://img.shields.io/github/license/elis-k/crypto-convert)](https://github.com/elis-k/crypto-convert/blob/master/LICENSE)
+# Crypto-Convert
+
 [![npm](https://img.shields.io/npm/v/crypto-convert)](https://www.npmjs.com/package/crypto-convert)
 [![npm](https://img.shields.io/npm/dw/crypto-convert)](https://www.npmjs.com/package/crypto-convert)
 
-Instantly convert cryptocurrency and get price information. 
+Convert crypto to fiat and vice-versa instantly.
 
-- Top 100 Crypto Currencies Supported
-- Top  30 Fiats Supported
-- Price & Ticker information updated on a configurable interval from multiple secure sources (Binance, Bitfinex, OKEx)
+- Top 100 Cryptocurrencies Supported
+- 20+ fiats Supported
+- Instantly convert, no slow promises.
+- Cross-compatible on Node.js & Browser
+- Price & Ticker information updated on a configurable interval from multiple secure sources (Binance, Bitfinex, Coinbase)
 - Any pair can be converted, be it Crypto -> Crypto or Fiat -> Crypto.
-- Instant convert, no slow promises.
+
 
 ## Installation
 `npm i crypto-convert`
 
+### Import
+```javascript
+import convert from 'crypto-convert';
+```
+
+Or with `require`, import it like this to get TypeScript:
+```javascript
+const convert = require("crypto-convert").default;
+```
 
 ## Usage
 ```javascript
-const convert = require("crypto-convert");
-
 (async function(){
 
-	//Cache is not yet loaded on application start
-	if(!convert.isReady){
-		await convert.ready();
-	}
-
+	await convert.ready(); //Cache is not yet loaded on first start
+	
 	convert.BTC.USD(1);
 	convert.ETH.JPY(255);
 	convert.LINK.LTC(5);
@@ -38,35 +44,26 @@ const convert = require("crypto-convert");
 
 ```
 
-## For Browsers
-```html
-<script type="text/javascript" src="https://coinconvert.net/assets/js/crypto-convert.min.js"></script>
-
-<script>
-	console.log(convert.BTC.USD(1));
-</script>
-``` 
-
 ## Configuration
 
 ```javascript
 const convert = require("crypto-convert");
 
 convert.set({
-	crypto_interval: 5000, //Crypto cache update interval, default every 5 seconds
-	fiat_interval: (60 * 1e3 * 60), //Fiat cache update interval, default every 1 hour
+	crypto_interval: 5000, //Crypto prices update interval, default every 5 seconds
+	fiat_interval: (60 * 1e3 * 60), //Fiat prices update interval, default every 1 hour
+	calculateAverage: true, //Calculate the average crypto price from exchanges
 	binance: true, //Use binance rates
 	bitfinex: true, //Use bitfinex rates
-	okex: true, //Use okex rates
-	onUpdate: (tickers)=> {} //Call Hook on every crypto update	
+	coinbase: true, //Use okex rates
+	onUpdate: (tickers, isFiat?)=> anu //Callback on every crypto update	
 });
 
 ```
 
 
 ## API
-
-Free public API, up to 50 req/s.
+Free public API
 
 `https://api.coinconvert.net/convert/btc/usd?amount=1`
 
