@@ -6,7 +6,6 @@
 .pnp.js
 package-lock.json
 /dist
-/src/api.d.ts
 # testing
 /coverage
 
