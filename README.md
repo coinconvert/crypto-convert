@@ -53,7 +53,7 @@ convert.setOptions({
 	binance: true, //Use binance rates
 	bitfinex: true, //Use bitfinex rates
 	coinbase: true, //Use coinbase rates
-	onUpdate: (tickers, isFiat?)=> anu //Callback on every crypto update	
+	onUpdate: (tickers, isFiat?)=> any //Callback on every crypto update	
 });
 
 ```
