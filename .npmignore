@@ -1,6 +1,6 @@
-src
-LICENSE
-dist/crypto-convert.min.js
-dist/crypto-convert.min.js.LICENSE.txt
-yarn.lock
-webpack.config.js
+*
+!dist/*
+!cdn/*
+!package.json
+!README.md
+!LICENSE

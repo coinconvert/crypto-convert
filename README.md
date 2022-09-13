@@ -41,26 +41,27 @@ const convert = require("crypto-convert").default;
 	//More readable syntax
 	new convert.from("BTC").to("USD").amount(1);
 })();
-
 ```
 
 ## Configuration
 
 ```javascript
-const convert = require("crypto-convert");
-
-convert.set({
+convert.setOptions({
 	crypto_interval: 5000, //Crypto prices update interval, default every 5 seconds
 	fiat_interval: (60 * 1e3 * 60), //Fiat prices update interval, default every 1 hour
 	calculateAverage: true, //Calculate the average crypto price from exchanges
 	binance: true, //Use binance rates
 	bitfinex: true, //Use bitfinex rates
-	coinbase: true, //Use okex rates
+	coinbase: true, //Use coinbase rates
 	onUpdate: (tickers, isFiat?)=> anu //Callback on every crypto update	
 });
 
 ```
 
+## CDN
+```html
+<script src='https://coinconvert.net/assets/js/crypto-convert.min.js'></script>
+```
 
 ## API
 Free public API

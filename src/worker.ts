@@ -103,10 +103,11 @@ export interface PricesClass {
 		crypto: string[],
 		fiat: string[]
 	},
-	setOptions: (options: Options)=> PricesClass,
+	setOptions: (options: Options | ((currentOptions: Options)=> Options))=> PricesClass,
 	stop: () => PricesClass,
 	restart: () => Promise<PricesClass>,
 	run: () => Promise<PricesClass>,
+	options: Options,
 	isRunning: boolean,
 	isReady: boolean
 }
@@ -135,7 +136,16 @@ function Prices(initialOptions = {}) {
 		}
 	};
 
-	this.setOptions(initialOptions); //Set options
+	this.options = {
+		crypto_interval: (5 * 1e3) , //Every 5 seconds
+		fiat_interval: (60 * 1e3 * 60), //Every 1 hour
+		calculateAverage: true,
+		binance: true,
+		coinbase:true,
+		bitfinex: true,
+		onUpdate: undefined,
+		...initialOptions
+	};
 
 	this.log = function () {
 		if(!isBrowser && process?.env?.NODE_ENV?.startsWith('dev')){
@@ -151,25 +161,29 @@ function Prices(initialOptions = {}) {
 /**
  * Options
  */
-Prices.prototype.setOptions = function (o?: Options) {
-	o = o || {};
+Prices.prototype.setOptions = function (o?: Options | ((currentOptions: Options)=> Options)) {
+	let newOptions = typeof o === "function" ? 
+		o({...this.options}) : 
+		(o || {});
 
 	this.options = {
-		crypto_interval: isNaN(o.crypto_interval) ? (5 * 1e3) : Math.min(1000, o.crypto_interval), //Every 5 seconds
-		fiat_interval: isNaN(o.fiat_interval) ? (60 * 1e3 * 60) : Math.min(5000, o.fiat_interval), //Every 1 hour
-		calculateAverage: o.hasOwnProperty('calculateAverage') ? o.calculateAverage : true,
-		binance: o.hasOwnProperty('binance') ? o.binance : true,
-		coinbase: o.hasOwnProperty('coinbase') ? o.coinbase : true,
-		bitfinex: o.hasOwnProperty('bitfinex') ? o.bitfinex : true,
-		onUpdate: o.onUpdate
-	};
+		...this.options,
+		...newOptions,
+		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.min(1000, newOptions.crypto_interval), 
+		fiat_interval: isNaN(newOptions.fiat_interval) ? this.options.fiat_interval : Math.min(5000, newOptions.fiat_interval),
+	}
+
+	//Update current
+	this.data.crypto.current = this.joinPrices(this.data);
 
 	return this;
 }
 
 Prices.prototype.updateCrypto = async function () {
-	this.log("Updating crypto...", this.data.crypto);
-
+	if(!this.data.crypto.last_updated){
+		this.log("Updating crypto...");
+	}
+	
 	const tickers = {
 		binance: API.binance.ticker,
 		bitfinex: API.bitfinex.ticker,
@@ -215,7 +229,7 @@ Prices.prototype.updateCrypto = async function () {
 }
 
 Prices.prototype.updateFiat = async function () {
-	this.log("Updating fiat...",this.data.fiat);
+	this.log("Updating fiat...");
 
 	try{
 		this.data.fiat.current = await API.fiat.all();
@@ -233,7 +247,7 @@ Prices.prototype.updateFiat = async function () {
 }
 
 Prices.prototype.updateLists = async function () {
-	this.log("Updating top currency list...", this.list.crypto);
+	this.log("Updating top currency list...");
 
 	try{
 		this.list.crypto = await API.coinmarketcap.top();
@@ -243,42 +257,52 @@ Prices.prototype.updateLists = async function () {
 	return this;
 }
 
+Prices.prototype.joinPrices = function(data: Tickers){
+	const exchangesData = {
+		binance: data.crypto.binance,
+		coinbase: data.crypto.coinbase,
+		bitfinex: data.crypto.bitfinex,
+	}
+
+	let currents = [],
+		current = {};
+
+	for(const exchange in exchangesData){
+		if(!this.options[exchange] || !exchangesData[exchange]){
+			continue;
+		}
+		
+		currents.push(exchangesData[exchange]);
+
+		current = {
+			...current,
+			...exchangesData[exchange]
+		}
+	}
+
+	return this.options.calculateAverage ? {
+		...current,
+		...getAverage(currents)
+	} : current;
+}
+
 Prices.prototype.browserTicker = async function () {
 	try{
-		const data = await API.coinconvert.ticker() as unknown as any;
+		const data = await API.coinconvert.ticker() as unknown as Tickers;
 
-		let exchangesData = {
-			binance: data.crypto.binance,
-			coinbase: data.crypto.coinbase,
-			bitfinex: data.crypto.bitfinex,
-		}
-
-		let currents = [],
-			current = {};
-
-		for(const exchange in exchangesData){
-			if(!this.options[exchange] || !exchangesData[exchange]){
-				continue;
-			}
-			
-			currents.push(exchangesData[exchange]);
-
-			current = {
-				...current,
-				...exchangesData[exchange]
-			}
-		}
+		let current = this.joinPrices(data);
 
 		this.data = {
 			...data,
-			crypto:{
-				...crypto,
-				current: this.options.calculateAverage ? {
-					...current,
-					...getAverage(currents)
-				} : current
+			crypto: {
+				...data.crypto,
+				current
 			}
 		};
+
+		if(typeof this.options.onUpdate === "function") {
+			this.options.onUpdate(this.data);
+		}
 		
 	} catch(err){
 		console.error(`Failed fetching prices from API`, err);

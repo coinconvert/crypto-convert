@@ -8,7 +8,7 @@ package-lock.json
 /dist
 # testing
 /coverage
-
+/cdn
 # production
 /build
 

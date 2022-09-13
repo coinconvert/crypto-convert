@@ -1,13 +1,19 @@
 import { formatNumber } from "./helpers";
 import PricesWorker, { Options, PricesClass, Tickers, WorkerReady } from "./worker";
+import { Pairs } from './paris';
 
 
-
+/*
 type Convert = {
 	[fromCurrency: string]: {
 		[toCurrency: string]: (amount: number)=> number | false | null
 	}
-} & {
+}*/
+
+interface Convert extends Pairs {
+	/**
+	 * Update options
+	 */
 	setOptions: (options?: Options)=> PricesClass,
 	
 	/**
@@ -26,12 +32,34 @@ type Convert = {
 	/**
 	 * Check if cache has loaded.
 	 */
-	ready: ()=> Promise<Convert>
+	ready: ()=> Promise<Convert>,
+
+	/**
+	 * Stop the worker. 
+	 * 
+	 * It's recommended to do this on Component unmounts (i.e if you are using React).
+	 */
+	stop: ()=> PricesClass,
+
+	/**
+	 * Re-start the worker when it has been stopped.
+	 * 
+	 * Returns a promise to wait for when it's ready.
+	 * 
+	 * ```javascript
+	 * const is_ready = await convert.start();
+	 * 
+	 */
+
+	start: ()=> Promise<PricesClass>
 }
 
 function isEmpty(obj: any) { 
-   for (var _ in obj) { return false; }
-   return true;
+	if(!obj){
+		return true;
+	}
+   	for (var _ in obj) { return false; }
+   	return true;
 }
 
 const coins = PricesWorker.list.crypto,
@@ -55,13 +83,19 @@ const exchangeWrap = function(){
 		}
 	}
 	
+	//Main conversion function
 	const wrapper = function(coin: string, currency: string){
 		var coin = coin;
 		var toCurrency = currency;
 		
 		var doExchange = function(fromAmount: number){
 			
-			if(isEmpty(PricesWorker.data.crypto) || !fromAmount){
+			if(isEmpty(PricesWorker.data.crypto.current) || isEmpty(PricesWorker.data.fiat.current)){
+				console.warn("[~] Prices are loading.\nYou should use `await convert.ready()` to make sure prices are loaded before calling convert.");
+				return false;
+			}
+
+			if(!fromAmount){
 				return false;
 			}
 
@@ -80,12 +114,11 @@ const exchangeWrap = function(){
 		
 			//Crypto to Crypto
 			if(coins.includes(coin) && coins.includes(toCurrency)){
-				this.exchangePrice = getPrice(coin, toCurrency);
-				if(!this.exchangePrice){
-					this.exchangePrice = wrapper("USD", toCurrency)(wrapper(coin, "USD")(1) as number);
-				}
+				let exchangePrice = getPrice(coin, toCurrency) ||
+					wrapper("USD", toCurrency)(wrapper(coin, "USD")(1) as number);
 				
-				return formatNumber(this.exchangePrice * fromAmount, 8); 
+				
+				return formatNumber(exchangePrice * fromAmount, 8); 
 			}
 			
 			//Fiat to Fiat
@@ -109,16 +142,16 @@ const exchangeWrap = function(){
 			
 			//Crypto to Fiat
 			if(fiatCurrencies[toCurrency]){
-				this.usdPrice = getCryptoPrice(coin);
-				this.exchangePrice = (this.usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to choosen FIAT 10000 JPY
-				return formatNumber(this.exchangePrice * fromAmount, 4);
+				let usdPrice = getCryptoPrice(coin);
+				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to choosen FIAT 10000 JPY
+				return formatNumber(exchangePrice * fromAmount, 4);
 			}
 
 			//Fiat to Crypto
 			if(fiatCurrencies[coin]){
-				this.usdPrice = getCryptoPrice(toCurrency);
-				this.exchangePrice = (this.usdPrice / fiatCurrencies['USD']) * fiatCurrencies[coin]; //Convert USD to choosen FIAT 10000 JPY
-				return formatNumber(fromAmount / this.exchangePrice, 8);
+				let usdPrice = getCryptoPrice(toCurrency);
+				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[coin]; //Convert USD to choosen FIAT 10000 JPY
+				return formatNumber(fromAmount / exchangePrice, 8);
 			}
 
 			return null;
@@ -126,23 +159,61 @@ const exchangeWrap = function(){
 		return doExchange;
 	}
 
+	
+	let types = '';
+
+	//Build conversion pairs object
 	const initialize = function () {
-		//Make Wrapper
+
+		//Generate typescript interface
+		types += `type amount = (amount: number | string) => number | false | null;`;
+		types +='\nexport interface Pairs {';
+
 		for(var i = 0; i < all_currencies.length; i++) {
 			var coin = all_currencies[i];
+			
+
+			if(!coin || typeof coin !== "string"){
+				continue;
+			}
+
+			if(!exchange[coin]) {
+				exchange[coin] = {};
+			}
+			
+
+			types += `\n\t'${coin.replace(/\'/g,"\\'")}': {`
+
 			for(var a = 0; a < all_currencies.length; a++) {
 				var currency = all_currencies[a];
-				if(!exchange[coin]) {
-					exchange[coin] = {};
-				}
-				exchange[coin][currency] = wrapper(coin, currency);
-			}
-		}
-	}();
 
+				if(!currency || typeof currency !== "string"){
+					continue;
+				}
+
+				exchange[coin][currency] = wrapper(coin, currency);
+
+				types += `\n\t\t'${currency.replace(/\'/g,"\\'")}': amount,`;
+			}
+
+			types += '\n},';
+		}
+
+		types +='\n}';
+	}();
 	
+	
+
 	exchange['setOptions'] = function (options: Options) {
 		return PricesWorker.setOptions(options); //.restart();
+	}
+
+	exchange['stop'] = function(){
+		return PricesWorker.stop();
+	}
+
+	exchange['start'] = function(){
+		return PricesWorker.restart();
 	}
 
 	exchange['ready'] = async function () {
@@ -180,6 +251,27 @@ const exchangeWrap = function(){
 			return false;
 		}
 		return exchange[this.coin][this.currency](amount);
+	}
+
+
+	//Create types file for Node.js. With Runtime types generation ^^
+	if(typeof window === "undefined" && typeof module !== "undefined" && typeof process !== "undefined"){
+		(async function(){
+			try{
+				//Static checks on frontend apps are annoying af
+				eval(`
+					const fs = require('fs');
+					const path = require('path');
+					const isDist = path.basename(__dirname) == 'dist';
+					const typesFile = path.join(__dirname, isDist ? 'paris.d.ts' : 'paris.ts');
+
+					fs.writeFileSync(typesFile, types, 'utf-8');
+				`);
+			}
+			catch(err){
+				console.warn(err);
+			}
+		})();
 	}
 
 	return exchange;

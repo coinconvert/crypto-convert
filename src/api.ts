@@ -151,10 +151,12 @@ const API = Rests({
 	},
 	coinconvert: {
 		ticker: {
-			path: "https://api.coinconvert.net/ticker?v={version}",
+			path: "https://api.coinconvert.net/v2/ticker?v={version}",
+			on_success: (response)=>(response.json)
 		},
 		list: {
 			path: "https://api.coinconvert.net/list?v={version}",
+			on_success: (response)=>(response.json)
 		}
 	}
 });
