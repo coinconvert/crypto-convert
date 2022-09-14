@@ -1,5 +1,5 @@
 import Rests from "rests";
-import { symbolMap } from "./helpers";
+import { formatNumber, symbolMap } from "./helpers";
 
 import {API as APITypes} from './api.d';
 
@@ -100,7 +100,7 @@ const API = Rests({
 
 				return Object.keys(data.rates).reduce((o,v,i)=>{
 					const bSymbol = v + data.currency,
-						bPrice = 1 / parseFloat(data.rates[v]);
+						bPrice = formatNumber(1 / parseFloat(data.rates[v]), 8);
 
 					o[bSymbol] = bPrice;
 					return o;

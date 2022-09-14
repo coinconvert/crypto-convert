@@ -34,7 +34,7 @@ export function getAverage(pairs: {
     
     return Object.keys(pairs[0]).reduce((o, pair)=>{
         let values = pairs.map((e)=> e[pair]).filter(v => v),
-            averageValue = values.reduce((sum, v)=> sum + v, 0) / values.length;
+            averageValue = formatNumber(values.reduce((sum, v)=> sum + v, 0) / values.length, 8);
 
         o[pair] = averageValue;
 
