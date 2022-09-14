@@ -211,9 +211,14 @@ const exchangeWrap = function(){
 		let update = PricesWorker.setOptions(options);
 
 		if(options.crypto_interval || options.fiat_interval){
-			return update.restart();
+			let restart = update.restart();
+			exchange['ready'] = async function () {
+				await Promise.resolve(restart);
+				return exchange;
+			};
+			return restart;
 		}
-		
+
 		return update;
 	}
 
@@ -222,7 +227,12 @@ const exchangeWrap = function(){
 	}
 
 	exchange['start'] = function(){
-		return PricesWorker.restart();
+		let restart = PricesWorker.restart();
+		exchange['ready'] = async function () {
+			await Promise.resolve(restart);
+			return exchange;
+		};
+		return restart;
 	}
 
 	exchange['ready'] = async function () {
