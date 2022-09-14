@@ -207,7 +207,14 @@ const exchangeWrap = function(){
 	
 
 	exchange['setOptions'] = function (options: Options) {
-		return PricesWorker.setOptions(options); //.restart();
+
+		let update = PricesWorker.setOptions(options);
+
+		if(options.crypto_interval || options.fiat_interval){
+			return update.restart();
+		}
+		
+		return update;
 	}
 
 	exchange['stop'] = function(){
