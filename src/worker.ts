@@ -127,11 +127,11 @@ function Prices(initialOptions = {}) {
 
 	this.data = {
 		"crypto": {
-			last_update: null,
+			last_updated: null,
 			current: null
 		},
 		"fiat": {
-			last_update: null,
+			last_updated: null,
 			current: null
 		}
 	};
@@ -169,8 +169,8 @@ Prices.prototype.setOptions = function (o?: Options | ((currentOptions: Options)
 	this.options = {
 		...this.options,
 		...newOptions,
-		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.min(isBrowser ? 5000 : 1000, newOptions.crypto_interval), 
-		fiat_interval: isNaN(newOptions.fiat_interval) ? this.options.fiat_interval : Math.min(60 * 30 * 1e3, newOptions.fiat_interval),
+		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.max(isBrowser ? 5000 : 1000, newOptions.crypto_interval), 
+		fiat_interval: isNaN(newOptions.fiat_interval) ? this.options.fiat_interval : Math.max(60 * 30 * 1e3, newOptions.fiat_interval),
 	}
 
 	//Update current
