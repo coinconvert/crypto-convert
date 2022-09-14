@@ -29,6 +29,8 @@ interface Convert extends Pairs {
 		fiat: string[]
 	},
 
+	isReady: boolean,
+	
 	/**
 	 * Check if cache has loaded.
 	 */
@@ -48,7 +50,7 @@ interface Convert extends Pairs {
 	 * 
 	 * ```javascript
 	 * const is_ready = await convert.start();
-	 * 
+	 * ```
 	 */
 
 	start: ()=> Promise<PricesClass>

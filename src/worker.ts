@@ -137,7 +137,7 @@ function Prices(initialOptions = {}) {
 	};
 
 	this.options = {
-		crypto_interval: (5 * 1e3) , //Every 5 seconds
+		crypto_interval: isBrowser ? 10 * 1e3 : (5 * 1e3) , //Every 5 seconds
 		fiat_interval: (60 * 1e3 * 60), //Every 1 hour
 		calculateAverage: true,
 		binance: true,
@@ -169,8 +169,8 @@ Prices.prototype.setOptions = function (o?: Options | ((currentOptions: Options)
 	this.options = {
 		...this.options,
 		...newOptions,
-		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.min(1000, newOptions.crypto_interval), 
-		fiat_interval: isNaN(newOptions.fiat_interval) ? this.options.fiat_interval : Math.min(5000, newOptions.fiat_interval),
+		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.min(isBrowser ? 5000 : 1000, newOptions.crypto_interval), 
+		fiat_interval: isNaN(newOptions.fiat_interval) ? this.options.fiat_interval : Math.min(60 * 30 * 1e3, newOptions.fiat_interval),
 	}
 
 	//Update current
