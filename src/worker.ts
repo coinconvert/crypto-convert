@@ -137,7 +137,7 @@ function Prices(initialOptions = {}) {
 	};
 
 	this.options = {
-		crypto_interval: isBrowser ? 10 * 1e3 : (5 * 1e3) , //Every 5 seconds
+		crypto_interval: isBrowser ? 30 * 1e3 : (5 * 1e3) , //Every 5 seconds
 		fiat_interval: (60 * 1e3 * 60), //Every 1 hour
 		calculateAverage: true,
 		binance: true,
@@ -169,7 +169,7 @@ Prices.prototype.setOptions = function (o?: Options | ((currentOptions: Options)
 	this.options = {
 		...this.options,
 		...newOptions,
-		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.max(isBrowser ? 5000 : 1000, newOptions.crypto_interval), 
+		crypto_interval: isNaN(newOptions.crypto_interval) ? this.options.crypto_interval : Math.max(isBrowser ? 10000 : 1000, newOptions.crypto_interval), 
 		fiat_interval: isNaN(newOptions.fiat_interval) ? this.options.fiat_interval : Math.max(60 * 30 * 1e3, newOptions.fiat_interval),
 	}
 
@@ -312,20 +312,39 @@ Prices.prototype.browserTicker = async function () {
 }
 
 Prices.prototype.runBrowser = async function () {
-	await this.browserTicker();
 
-	this.list = await API.coinconvert.list();
+	if(typeof window !== "undefined" && window['__ccRunning']){
+		throw new Error(`The crypto-convert worker seems to be already running. 
+			- There might be an issue with the way your app imports javascript dependencies. 
+			- Make sure to call 'convert.stop()' on component unmounts if you are using SPA frameworks (e.g React).`
+		);
+	}
+
+	//First run only
+	if(!this.data?.crypto?.current){
+		await this.browserTicker();
+		this.list = await API.coinconvert.list();
+	}
 
 	this.isReady = true;
 
 	if(this.crypto_worker){
-		clearInterval
+		clearInterval(this.crypto_worker);
 	}
 
 	this.crypto_worker = setInterval(
 		this.browserTicker.bind(this), 
 		this.options.crypto_interval
 	);
+
+	if(typeof window !== "undefined"){
+		window['__ccRunning'] = true;
+		if(window['__ccRunID']){
+			clearInterval(window['__ccRunID']);
+		}
+		window['__ccRunID'] = this.crypto_worker;
+	}
+
 	return this;
 }
 
@@ -365,6 +384,10 @@ Prices.prototype.stop = function () {
 
 	this.isRunning = false;
 
+	if(typeof window !== "undefined"){
+		window['__ccRunning'] = false;
+	}
+	
 	return this;
 }
 

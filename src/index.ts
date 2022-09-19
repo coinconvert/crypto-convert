@@ -4,11 +4,12 @@ import { Pairs } from './paris';
 
 
 /*
-type Convert = {
+type ConvertObject = {
 	[fromCurrency: string]: {
 		[toCurrency: string]: (amount: number)=> number | false | null
 	}
-}*/
+}
+*/
 
 interface Convert extends Pairs {
 	/**
@@ -205,12 +206,14 @@ const exchangeWrap = function(){
 	}();
 	
 	
-
 	exchange['setOptions'] = function (options: Options) {
 
 		let update = PricesWorker.setOptions(options);
 
-		if(options.crypto_interval || options.fiat_interval){
+		if((options.crypto_interval || options.fiat_interval) && (
+			options.crypto_interval !== PricesWorker.options.crypto_interval ||
+			options.fiat_interval !== PricesWorker.options.fiat_interval
+		)){
 			let restart = update.restart();
 			exchange['ready'] = async function () {
 				await Promise.resolve(restart);
