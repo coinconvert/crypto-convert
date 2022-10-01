@@ -23,17 +23,38 @@ interface Convert extends Pairs {
 	ticker: Tickers,
 
 	/**
-	 * Support currencies list
+	 * Supported currencies list
 	 */
 	list: {
 		crypto: string[],
 		fiat: string[]
 	},
 
+	/**
+	 * Metadata information about cryptocurrencies
+	 */
+	cryptoInfo:{	
+		[crypto: string]:{
+			id: number,
+			symbol: string,
+			title: string,
+			logo: string,
+			rank: number
+		}
+	}
+
+	/**
+	 * Quick check if cache has loaded.
+	 */
 	isReady: boolean,
+
+	/**
+	 * Get crypto prices last updated ms
+	 */
+	lastUpdated: number,
 	
 	/**
-	 * Check if cache has loaded.
+	 * Promise function that resolves when cache has loaded.
 	 */
 	ready: ()=> Promise<Convert>,
 
@@ -65,9 +86,6 @@ function isEmpty(obj: any) {
    	return true;
 }
 
-const coins = PricesWorker.list.crypto,
-	fiats = PricesWorker.list.fiat;
-
 
 function getPrice(coin: string,	to='USD'){
 	var result = PricesWorker.data.crypto.current[coin + to] || (
@@ -78,11 +96,25 @@ function getPrice(coin: string,	to='USD'){
 }
 
 const exchangeWrap = function(){
-	const all_currencies = coins.concat(fiats);
-
+	
 	const exchange = {
 		get isReady() {
 			return PricesWorker.isReady;
+		},
+		get list(){
+			return {
+				'crypto': PricesWorker.list.crypto,
+				'fiat': PricesWorker.list.fiat
+			}
+		},
+		get cryptoInfo(){
+			return PricesWorker.cryptoInfo
+		},
+		get lastUpdated(){
+			return PricesWorker.data.crypto.last_updated
+		},
+		get ticker(){
+			return PricesWorker.data;
 		}
 	}
 	
@@ -116,7 +148,7 @@ const exchangeWrap = function(){
 			}
 		
 			//Crypto to Crypto
-			if(coins.includes(coin) && coins.includes(toCurrency)){
+			if(PricesWorker.list.crypto.includes(coin) && PricesWorker.list.crypto.includes(toCurrency)){
 				let exchangePrice = getPrice(coin, toCurrency) ||
 					wrapper("USD", toCurrency)(wrapper(coin, "USD")(1) as number);
 				
@@ -162,15 +194,15 @@ const exchangeWrap = function(){
 		return doExchange;
 	}
 
-	
-	let types = '';
-
-	//Build conversion pairs object
+	//Build pairs object & types
 	const initialize = function () {
+		let types = '';
 
 		//Generate typescript interface
 		types += `type amount = (amount: number | string) => number | false | null;`;
 		types +='\nexport interface Pairs {';
+
+		const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat);
 
 		for(var i = 0; i < all_currencies.length; i++) {
 			var coin = all_currencies[i];
@@ -203,9 +235,28 @@ const exchangeWrap = function(){
 		}
 
 		types +='\n}';
-	}();
-	
-	
+
+		//Create types file for Node.js. With Runtime types generation ^^
+		if(typeof window === "undefined" && typeof module !== "undefined" && typeof process !== "undefined"){
+			(async function(){
+				try{
+					// Here we save the types file. Using eval because static linting checks on frontend apps are annoying af.
+					eval(`
+						const fs = require('fs');
+						const path = require('path');
+						const isDist = path.basename(__dirname) == 'dist';
+						const typesFile = path.join(__dirname, isDist ? 'paris.d.ts' : 'paris.ts');
+
+						fs.writeFileSync(typesFile, types, 'utf-8');
+					`);
+				}
+				catch(err){
+					console.warn(err);
+				}
+			})();
+		}
+	};
+		
 	exchange['setOptions'] = function (options: Options) {
 
 		let update = PricesWorker.setOptions(options);
@@ -243,58 +294,10 @@ const exchangeWrap = function(){
 		return exchange;
 	}
 
-	//List
-	exchange['list'] = {
-		'crypto': coins,
-		'fiat': fiats
-	}
-
-	//Ticker
-	exchange['ticker'] = {
-		get crypto() {
-			return PricesWorker.data.crypto;
-		},
-		get fiat() {
-			return PricesWorker.data.fiat;
-		}
-	}
-
-	//More Readable Prototype
-	exchange['from'] = function(coin: string){
-		this.coin = coin.toUpperCase();
-		return this;
-	}
-	exchange['from'].prototype.to = function(currency: string){
-		this.currency = currency.toUpperCase();
-		return this;
-	}
-	exchange['from'].prototype.amount = function(amount=1){
-		if(!this.coin || !this.currency || !exchange[this.coin] || !exchange[this.currency]){
-			return false;
-		}
-		return exchange[this.coin][this.currency](amount);
-	}
-
-
-	//Create types file for Node.js. With Runtime types generation ^^
-	if(typeof window === "undefined" && typeof module !== "undefined" && typeof process !== "undefined"){
-		(async function(){
-			try{
-				//Static checks on frontend apps are annoying af
-				eval(`
-					const fs = require('fs');
-					const path = require('path');
-					const isDist = path.basename(__dirname) == 'dist';
-					const typesFile = path.join(__dirname, isDist ? 'paris.d.ts' : 'paris.ts');
-
-					fs.writeFileSync(typesFile, types, 'utf-8');
-				`);
-			}
-			catch(err){
-				console.warn(err);
-			}
-		})();
-	}
+	//Wait for updated lists before initializing 
+	Promise.resolve(WorkerReady).then(()=>(
+		initialize()
+	));
 
 	return exchange;
 }();

@@ -3,13 +3,39 @@ import { formatNumber, symbolMap } from "./helpers";
 
 import {API as APITypes} from './api.d';
 
+
+//We need to specify the list of pairs for kraken ticker API, because the mfs couldn't add an 'ALL' parameter.
+//This is done automatically and saved on this variable as cache.
+let krakenPairsList: string[];
+
+//Binance shows old prices on closed markets for some reason.
+//We check the book ticker to filter out closed markets.
+let closedMarketsBinance: string[];
+
 const API = Rests({
 	binance: {
 		$options:{
 			base: "https://api.binance.com/api/v3"
 		},
+		bookTicker:{
+			path: '/ticker/bookTicker',
+			on_success: (response)=>(response.json)
+		},
 		ticker: {
 			path: "/ticker/price",
+			async on_request(request){
+				if(!closedMarketsBinance){
+					const bookTicker = await request.instance.binance.bookTicker();
+					closedMarketsBinance = bookTicker.map((pair: any)=>{
+						if(parseFloat(pair.askPrice) <= 0){
+							return pair.symbol;
+						}
+						return false;
+					}).filter(p => p);
+
+					//console.log(`${closedMarketsBinance.length} Binance Closed Markets have been filtered.`);
+				}
+			},
 			on_success(response, request?) {
 
 				//We use USD stablecoins to calculate Binance price
@@ -25,10 +51,14 @@ const API = Rests({
 				}
 
 				return data.reduce((obj, pair) => {
-
+					//Filter closed markets
+					if(closedMarketsBinance && closedMarketsBinance.indexOf(pair.symbol) !== -1){
+						return obj;
+					}
+					
 					const bSymbol = symbolMap(pair.symbol, usdPegs),
 						bPrice = parseFloat(pair.price);
-
+				
 					obj[bSymbol] = bPrice;
 					
 					return obj;
@@ -69,7 +99,8 @@ const API = Rests({
 
 					const bSymbol = symbolMap(
 							pair[0].replace(/^t/,''),
-							coinAliases
+							coinAliases,
+							true
 						).replace(':', ''),
 						bPrice = parseFloat(pair[7]);
 					
@@ -109,6 +140,70 @@ const API = Rests({
 			}
 		}
 	},
+	kraken:{
+		$options:{
+			base: 'https://api.kraken.com/0/public'
+		},
+		pairs: {
+			path: '/AssetPairs',
+			on_success: (res)=>{
+				//console.log("Getting kraken pairs...");
+				return Object.keys(res.json.result);
+			}
+		},
+		ticker:{
+			path: '/Ticker',
+			on_request: async (request)=> {
+			
+				if(!krakenPairsList){
+					const assetPairs = await request.instance.kraken.pairs();
+					krakenPairsList = assetPairs;
+				}
+				
+				return {
+					url: request.url + '?pair=' + krakenPairsList
+				}
+			},
+			on_success: (response)=>{
+				//They have weird symbols like XXRPXXBT
+				const fixedSymbols = {
+					'XETC': 'ETC',
+					'XETH': 'ETH',
+					'XLTC': 'LTC',
+					'XMLN': 'MLN',
+					'XREP': 'REP',
+					'XXBT': 'BTC',
+					'XXDG': 'XDG',
+					'XXLM': 'XLM',
+					'XXMR': 'XMR',
+					'XXRP': 'XRP',
+					'XZEC': 'ZEC',
+					'XBT': 'BTC',
+					'ZAUD': 'AUD',
+					'ZEUR': 'EUR',
+					'ZGBP': 'GBP',
+					'ZUSD': 'USD',
+					'ZCAD': 'CAD',
+					'ZJPY': 'JPY'
+				},
+				data = response.json?.result;
+			
+				if(!data) {
+					throw new Error(`Invalid response from Kraken: ${JSON.stringify(data)}`);
+				}
+
+				return Object.keys(data).reduce((obj, symbol) => {
+
+					const bSymbol = symbolMap(symbol, fixedSymbols, true),
+						bPrice = parseFloat(data[symbol].c[0]);
+
+					obj[bSymbol] = bPrice;
+
+					return obj;
+				}, {});
+			}
+		}
+	},
 	coinmarketcap: {
 		$options:{
 			base: "https://api.coinmarketcap.com/data-api/v3"
@@ -117,7 +212,7 @@ const API = Rests({
 			path: "/map/all",
 			params: {
 				limit: {
-					default: "100",
+					default: "150",
 				},
 				listing_status:{
 					default: "active"
@@ -130,9 +225,16 @@ const API = Rests({
 					throw new Error(`Invalid response from CoinMarketCap: ${JSON.stringify(data)}`);
 				}
 
-				return data.data.cryptoCurrencyMap.map((coin) => {
-					return coin.symbol;
-				});
+				return data.data.cryptoCurrencyMap.reduce((o: any, v: any) => {
+					o[v.symbol] = {
+						id: v.id,
+						title: v.name,
+						symbol: v.symbol,
+						logo: `https://s2.coinmarketcap.com/static/img/coins/128x128/${v.id}.png`,
+						rank: v.rank,
+					}
+					return o;
+				}, {});
 			}
 		}
 	},
@@ -150,12 +252,26 @@ const API = Rests({
 		}
 	},
 	coinconvert: {
+		$options:{
+			base: 'http://api.coinconvert.net'
+		},
 		ticker: {
-			path: "https://api.coinconvert.net/v2/ticker?v={version}",
+			path: "/v2/ticker",
+			params: {
+				v: {
+					default: '{version}'
+				},
+				filterExchanges: {
+					type: "array"
+				},
+				noAverage:{
+					type: "boolean"
+				}
+			},
 			on_success: (response)=>(response.json)
 		},
 		list: {
-			path: "https://api.coinconvert.net/list?v={version}",
+			path: "/v2/list?v={version}",
 			on_success: (response)=>(response.json)
 		}
 	}

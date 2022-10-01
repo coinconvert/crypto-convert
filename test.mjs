@@ -2,6 +2,14 @@
 import assert from 'assert';
 import convert from './dist/index.js';
 import {formatNumber} from './dist/helpers.js';
+  
+const exchanges = ['binance', 'bitfinex', 'coinbase', 'kraken'];
+const onlyThisExchange = (exchange)=>{
+    return exchanges.reduce((o,v)=>({
+        ...o,
+        [v]: exchange == v ? true : false
+    }),{});
+};
 
 describe('Rests API Main', function () {
 	it('Crypto to Fiat', async function () {
@@ -57,6 +65,71 @@ describe('Rests API Main', function () {
         let third = convert.BTC.USD(1);
 
         assert.equal(first, third);
+	});
+
+    /**
+     * We compare all exchange pairs to look for major differences that indicate that the pricing is not correct.
+     */
+    it('Prices are correct', async function () {
+		await convert.ready();
+        
+        const allPricesCompare = {};
+
+        for(const exchange of exchanges){
+
+            const pairs = convert.ticker.crypto[exchange];
+            
+            for(const pair in pairs){
+        
+                allPricesCompare[pair] = allPricesCompare[pair] || {};
+                allPricesCompare[pair][exchange] = pairs[pair];
+            }
+        }
+        
+        let differentPrices = 0;
+
+        for(const pair in allPricesCompare){
+            const prices = allPricesCompare[pair];
+            
+            let compare = [];
+
+            let isBigDifference = false;
+            
+            for(const exchange in prices){
+                const price = prices[exchange];
+
+                if(!compare.length){
+                    compare.push([
+                        exchange, price, 0
+                    ])
+                    continue;
+                }
+
+                let currentDifference = Math.ceil((1 - (compare[0][1] / price)) * 100); 
+
+                if(Math.abs(currentDifference) > 10){
+                    isBigDifference = true;
+                    differentPrices++;
+                }
+
+                compare.push([
+                    exchange, price, currentDifference
+                ]);
+            }
+
+            if(isBigDifference){
+                console.warn(`[${pair}] A 10% difference was detected on this pair: `);
+                for(const [exchange, price, difference] of compare){
+                    console.info(`  ${exchange}: ${price} | ${difference > 0 ? '+' + difference: difference}%`);
+                }
+                console.info('\r\n');
+            }
+        }
+        if(differentPrices){
+            console.warn(`[!] ${differentPrices} prices are not matching.`);
+        }
+
+        assert.strictEqual(differentPrices < 10, true);
 	});
 	
 });

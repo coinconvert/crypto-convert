@@ -7,7 +7,7 @@ export function symbolMap(symbol: string, map: {
      * }
      */
     [currentSymbol: string]: string
-}){
+}, recurisve=false){
 
     const mapKeys = Object.keys(map);
 
@@ -18,7 +18,11 @@ export function symbolMap(symbol: string, map: {
                 symbol.startsWith(mapKeys[c])
             )
         ){
-            return symbol.replace(mapKeys[c], map[mapKeys[c]]);
+            const cleaned = symbol.replace(mapKeys[c], map[mapKeys[c]]);
+            if(recurisve){
+                return symbolMap(cleaned, map, false);
+            }
+            return cleaned;
         }
     }
 
@@ -31,8 +35,10 @@ export function getAverage(pairs: {
     if(!pairs.length){
         return {}
     };
-    
-    return Object.keys(pairs[0]).reduce((o, pair)=>{
+
+    const allPairs = pairs.flatMap((pair) => Object.keys(pair)).filter((pair, i, arr)=> arr.indexOf(pair) == i);
+  
+    return allPairs.reduce((o, pair)=>{
         let values = pairs.map((e)=> e[pair]).filter(v => v),
             averageValue = formatNumber(values.reduce((sum, v)=> sum + v, 0) / values.length, 8);
 

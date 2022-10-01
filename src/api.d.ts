@@ -186,6 +186,12 @@ interface newCategory<T> extends HideFuncProps<T> {
 export interface APIBinance extends newCategory<APIBinance> {
 
 	/**
+	 * BookTicker - GET request 
+	 */
+	bookTicker: () => Promise<ResponseObject>;
+
+
+	/**
 	 * Ticker - GET request 
 	 */
 	ticker: () => Promise<ResponseObject>;
@@ -227,6 +233,21 @@ export interface APICoinbase extends newCategory<APICoinbase> {
 
 }
 
+export interface APIKraken extends newCategory<APIKraken> {
+
+	/**
+	 * Pairs - GET request 
+	 */
+	pairs: () => Promise<ResponseObject>;
+
+
+	/**
+	 * Ticker - GET request 
+	 */
+	ticker: () => Promise<ResponseObject>;
+
+}
+
 export interface APICoinmarketcap extends newCategory<APICoinmarketcap> {
 
 	/**
@@ -238,10 +259,21 @@ export interface APICoinmarketcap extends newCategory<APICoinmarketcap> {
 	 * 
 	 * @example
 	 * 
-	 * `"100"`
+	 * `"150"`
 	 * 						 
 	 */
-	limit?: number
+	limit?: any
+	
+
+	/**
+	 * 	
+	 * 
+	 * @example
+	 * 
+	 * `"active"`
+	 * 						 
+	 */
+	listing_status?: any
 	
 } | FormData) => Promise<ResponseObject>;
 
@@ -261,7 +293,30 @@ export interface APICoinconvert extends newCategory<APICoinconvert> {
 	/**
 	 * Ticker - GET request 
 	 */
-	ticker: () => Promise<ResponseObject>;
+	ticker: (params?: {
+	/**
+	 * 	
+	 * 
+	 * @example
+	 * 
+	 * `"{version}"`
+	 * 						 
+	 */
+	v?: any
+	
+
+	/**
+	 *  
+	 */
+	filterExchanges?: any[]
+	
+
+	/**
+	 *  
+	 */
+	noAverage?: boolean
+	
+} | FormData) => Promise<ResponseObject>;
 
 
 	/**
@@ -286,6 +341,11 @@ export interface API extends updateOptions<API> {
 	 * Coinbase Endpoints Category 
 	 */
 	coinbase: APICoinbase
+
+	/**
+	 * Kraken Endpoints Category 
+	 */
+	kraken: APIKraken
 
 	/**
 	 * Coinmarketcap Endpoints Category 
