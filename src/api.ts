@@ -253,7 +253,7 @@ const API = Rests({
 	},
 	coinconvert: {
 		$options:{
-			base: 'http://api.coinconvert.net'
+			base: 'https://api.coinconvert.net'
 		},
 		ticker: {
 			path: "/v2/ticker",
