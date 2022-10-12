@@ -161,7 +161,7 @@ const exchangeWrap = function(){
 				
 				return formatNumber(
 					((fromAmount / fiatCurrencies[coin]) * fiatCurrencies[toCurrency]),
-					2
+					4
 				);
 			}
 			
@@ -179,7 +179,7 @@ const exchangeWrap = function(){
 			if(fiatCurrencies[toCurrency]){
 				let usdPrice = getCryptoPrice(coin);
 				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to choosen FIAT 10000 JPY
-				return formatNumber(exchangePrice * fromAmount, 4);
+				return formatNumber(exchangePrice * fromAmount, 8);
 			}
 
 			//Fiat to Crypto
