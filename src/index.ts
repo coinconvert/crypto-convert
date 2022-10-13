@@ -1,17 +1,9 @@
-import { formatNumber } from "./helpers";
+import { formatNumber, isEmpty } from "./helpers";
 import PricesWorker, { Options, PricesClass, Tickers, WorkerReady } from "./worker";
 import { Pairs } from './paris';
 import CustomCurrency from "./custom";
 
-
 const CustomWorkers = new CustomCurrency();
-/*
-type ConvertObject = {
-	[fromCurrency: string]: {
-		[toCurrency: string]: (amount: number)=> number | false | null
-	}
-}
-*/
 
 interface Convert extends Pairs {
 	/**
@@ -97,39 +89,26 @@ interface Convert extends Pairs {
 	 * Remove custom currency fetcher.
 	 */
 	removeCurrency: (base: string, quote?: string)=>void
+
+	/*
+		[fromCurrency: string]: {
+			[toCurrency: string]: (amount: number)=> number | false | null
+		}
+	*/
 }
 
-function isEmpty(obj: any) { 
-	if(!obj){
-		return true;
-	}
-   	for (var _ in obj) { return false; }
-   	return true;
-}
-
-
-function getPrice(coin: string,	to='USD'){
+/**
+ * This is the main object
+ */
+const ConvertObject = function(){
 	
-	var customResult = CustomWorkers.ticker[coin+to] || (
-		CustomWorkers.ticker[to + coin] ? 1/CustomWorkers.ticker[to + coin] : null
-	);
-
-	var result = PricesWorker.data.crypto.current[coin + to] || (
-		PricesWorker.data.crypto.current[to + coin] ? 1/PricesWorker.data.crypto.current[to + coin] : null
-	);
-
-	return customResult || result;
-}
-
-const exchangeWrap = function(){
-	
-	const exchange = {
+	const convert = {
 		get isReady() {
 			return PricesWorker.isReady;
 		},
 		get list(){
 			return {
-				'crypto': PricesWorker.list.crypto,
+				'crypto': PricesWorker.list.crypto.concat(CustomWorkers.list),
 				'fiat': PricesWorker.list.fiat
 			}
 		},
@@ -143,8 +122,22 @@ const exchangeWrap = function(){
 			return PricesWorker.data;
 		}
 	}
+
+	//Get symbol price from tickers
+	const getPrice = function(coin: string,	to='USD'){
 	
-	//Main conversion function
+		var customResult = CustomWorkers.ticker[coin+to] || (
+			CustomWorkers.ticker[to + coin] ? 1/CustomWorkers.ticker[to + coin] : null
+		);
+	
+		var result = PricesWorker.data.crypto.current[coin + to] || (
+			PricesWorker.data.crypto.current[to + coin] ? 1/PricesWorker.data.crypto.current[to + coin] : null
+		);
+	
+		return customResult || result;
+	}
+	
+	//Conversion function
 	const wrapper = function(coin: string, currency: string){
 		var coin = coin;
 		var toCurrency = currency;
@@ -239,8 +232,8 @@ const exchangeWrap = function(){
 				continue;
 			}
 
-			if(!exchange[coin]) {
-				exchange[coin] = {};
+			if(!convert[coin]) {
+				convert[coin] = {};
 			}
 			
 
@@ -253,7 +246,7 @@ const exchangeWrap = function(){
 					continue;
 				}
 
-				exchange[coin][currency] = wrapper(coin, currency);
+				convert[coin][currency] = wrapper(coin, currency);
 
 				types += `\n\t\t'${currency.replace(/\'/g,"\\'")}': amount,`;
 			}
@@ -284,8 +277,9 @@ const exchangeWrap = function(){
 		}
 	};
 
-		
-	exchange['setOptions'] = function (options: Options) {
+	//These below here are just proxy methods to the worker object.
+
+	convert['setOptions'] = function (options: Options) {
 
 		let update = PricesWorker.setOptions(options);
 
@@ -293,10 +287,13 @@ const exchangeWrap = function(){
 			options.crypto_interval !== PricesWorker.options.crypto_interval ||
 			options.fiat_interval !== PricesWorker.options.fiat_interval
 		)){
+
+			//Restart the worker in order to clear interval & update to new interval
 			let restart = update.restart();
-			exchange['ready'] = async function () {
+			convert['ready'] = async function () {
 				await Promise.resolve(restart);
-				return exchange;
+				await Promise.resolve(CustomWorkers.ready());
+				return convert;
 			};
 			return restart;
 		}
@@ -304,28 +301,29 @@ const exchangeWrap = function(){
 		return update;
 	}
 
-	exchange['stop'] = function(){
+	convert['stop'] = function(){
 		return PricesWorker.stop();
 	}
 
-	exchange['start'] = function(){
+	convert['start'] = function(){
 		let restart = PricesWorker.restart();
-		exchange['ready'] = async function () {
+		convert['ready'] = async function () {
 			await Promise.resolve(restart);
-			return exchange;
+			await Promise.resolve(CustomWorkers.ready());
+			return convert;
 		};
 		return restart;
 	}
 
-	exchange['ready'] = async function () {
+	convert['ready'] = async function () {
 		await Promise.resolve(WorkerReady);
 		await Promise.resolve(CustomWorkers.ready());
-		return exchange;
+		return convert;
 	}
 
-	exchange['addCurrency'] = (base: string, ...rest: any)=>{
+	convert['addCurrency'] = (base: string, ...rest: any)=>{
 
-		if(exchange.hasOwnProperty(base)){
+		if(convert.hasOwnProperty(base)){
 			throw new Error("This property already exists.");
 		}
 
@@ -338,16 +336,16 @@ const exchangeWrap = function(){
 		});
 	};
 
-	exchange['removeCurrency'] = (base: string, quote?: string)=>{
+	convert['removeCurrency'] = (base: string, quote?: string)=>{
 
 		if(CustomWorkers.list.includes(base)){
-			delete exchange[base];
+			delete convert[base];
 
 			const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat, CustomWorkers.list);
 
 			for(const currency of all_currencies){
-				if(exchange[currency]?.[base]){
-					delete exchange[currency]?.[base];
+				if(convert[currency]?.[base]){
+					delete convert[currency]?.[base];
 				}
 			}
 		}
@@ -360,7 +358,7 @@ const exchangeWrap = function(){
 		initialize()
 	));
 
-	return exchange;
+	return convert;
 }();
 
 /**
@@ -392,7 +390,7 @@ const exchangeWrap = function(){
  * });
  * ```
  */
-const convert = exchangeWrap as unknown as Convert;
+const convert = ConvertObject as unknown as Convert;
 
 //@ts-ignore
 convert.default = convert;

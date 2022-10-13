@@ -63,3 +63,11 @@ export function formatNumber(n: number | string, decimals?: number){
 
     return parseFloat(clean);
 }
+
+export function isEmpty(obj: any) { 
+	if(!obj){
+		return true;
+	}
+   	for (var _ in obj) { return false; }
+   	return true;
+}
