@@ -12,6 +12,7 @@ const onlyThisExchange = (exchange)=>{
 };
 
 describe('Rests API Main', function () {
+    
 	it('Crypto to Fiat', async function () {
 		await convert.ready();
 
@@ -43,7 +44,6 @@ describe('Rests API Main', function () {
         assert.equal(formatNumber(1 / convert.JPY.INR(1), 0), formatNumber(convert.INR.JPY(1), 0))
 	});
 
-
     it('Update options correctly', async function () {
 		await convert.ready();
         let first = convert.BTC.USD(1);
@@ -65,6 +65,19 @@ describe('Rests API Main', function () {
         let third = convert.BTC.USD(1);
 
         assert.equal(first, third);
+	});
+
+    it('Custom currencies', async function () {
+        convert.addCurrency('TESTING', 'USD', async ()=>{
+            return Math.floor((Math.random() * 1000))
+         }, 5000);
+
+        await convert.ready();
+
+        assert.strictEqual(typeof convert.TESTING.USD(1), "number");
+        assert.strictEqual(typeof convert.USD.TESTING(1), "number");
+        assert.strictEqual(typeof convert.BTC.TESTING(1), "number");
+        assert.strictEqual(typeof convert.TESTING.LTC(1), "number");
 	});
 
     /**
@@ -129,7 +142,7 @@ describe('Rests API Main', function () {
             console.warn(`[!] ${differentPrices} prices are not matching.`);
         }
 
-        assert.strictEqual(differentPrices < 10, true);
+        assert.strictEqual(differentPrices < 20, true);
 	});
 	
 });

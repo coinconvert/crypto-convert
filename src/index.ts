@@ -1,8 +1,10 @@
 import { formatNumber } from "./helpers";
 import PricesWorker, { Options, PricesClass, Tickers, WorkerReady } from "./worker";
 import { Pairs } from './paris';
+import CustomCurrency from "./custom";
 
 
+const CustomWorkers = new CustomCurrency();
 /*
 type ConvertObject = {
 	[fromCurrency: string]: {
@@ -75,7 +77,26 @@ interface Convert extends Pairs {
 	 * ```
 	 */
 
-	start: ()=> Promise<PricesClass>
+	start: ()=> Promise<PricesClass>,
+
+
+	/**
+	 * Add a custom currency fetcher. Can be anything.
+	 * 
+	 * @example
+	 * ```javascript
+	 * convert.addCurrency('ANY','USD', async fetchPrice()=>{
+	 * 		//...call your api here
+	 * 		return price;
+	 * }, 10000);
+	 * ```
+	 */
+	addCurrency: typeof CustomWorkers.addCurrency,
+
+	/**
+	 * Remove custom currency fetcher.
+	 */
+	removeCurrency: (base: string, quote?: string)=>void
 }
 
 function isEmpty(obj: any) { 
@@ -88,11 +109,16 @@ function isEmpty(obj: any) {
 
 
 function getPrice(coin: string,	to='USD'){
+	
+	var customResult = CustomWorkers.ticker[coin+to] || (
+		CustomWorkers.ticker[to + coin] ? 1/CustomWorkers.ticker[to + coin] : null
+	);
+
 	var result = PricesWorker.data.crypto.current[coin + to] || (
 		PricesWorker.data.crypto.current[to + coin] ? 1/PricesWorker.data.crypto.current[to + coin] : null
 	);
 
-	return result;
+	return customResult || result;
 }
 
 const exchangeWrap = function(){
@@ -141,6 +167,7 @@ const exchangeWrap = function(){
 			}
 			
 			const fiatCurrencies = PricesWorker.data.fiat.current;
+			const cryptoCurrenciesList = PricesWorker.list.crypto.concat(CustomWorkers.list);
 
 			//Same
 			if(toCurrency == coin){
@@ -148,7 +175,7 @@ const exchangeWrap = function(){
 			}
 		
 			//Crypto to Crypto
-			if(PricesWorker.list.crypto.includes(coin) && PricesWorker.list.crypto.includes(toCurrency)){
+			if(cryptoCurrenciesList.includes(coin) && cryptoCurrenciesList.includes(toCurrency)){
 				let exchangePrice = getPrice(coin, toCurrency) ||
 					wrapper("USD", toCurrency)(wrapper(coin, "USD")(1) as number);
 				
@@ -167,25 +194,25 @@ const exchangeWrap = function(){
 			
 			
 			//Crypto->Fiat || Crypto->BTC->Fiat
-			var getCryptoPrice = function (fiat: string) {
-				var fiatPrice = getPrice(fiat) ||
-					wrapper("BTC","USD")(getPrice(fiat,"BTC") as number) || 
-					wrapper("ETH","USD")(getPrice(fiat,"ETH") as number);
+			var getCryptoPrice = function (coin: string) {
+				var coinPrice = getPrice(coin) ||
+					wrapper("BTC","USD")(getPrice(coin,"BTC") as number) || 
+					wrapper("ETH","USD")(getPrice(coin,"ETH") as number);
 				
-				return fiatPrice;
+				return coinPrice;
 			}
 			
 			//Crypto to Fiat
 			if(fiatCurrencies[toCurrency]){
 				let usdPrice = getCryptoPrice(coin);
-				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to choosen FIAT 10000 JPY
+				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to chosen FIAT
 				return formatNumber(exchangePrice * fromAmount, 8);
 			}
 
 			//Fiat to Crypto
 			if(fiatCurrencies[coin]){
 				let usdPrice = getCryptoPrice(toCurrency);
-				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[coin]; //Convert USD to choosen FIAT 10000 JPY
+				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[coin]; //Convert USD to chosen FIAT
 				return formatNumber(fromAmount / exchangePrice, 8);
 			}
 
@@ -202,7 +229,7 @@ const exchangeWrap = function(){
 		types += `type amount = (amount: number | string) => number | false | null;`;
 		types +='\nexport interface Pairs {';
 
-		const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat);
+		const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat, CustomWorkers.list);
 
 		for(var i = 0; i < all_currencies.length; i++) {
 			var coin = all_currencies[i];
@@ -256,6 +283,7 @@ const exchangeWrap = function(){
 			})();
 		}
 	};
+
 		
 	exchange['setOptions'] = function (options: Options) {
 
@@ -291,7 +319,40 @@ const exchangeWrap = function(){
 
 	exchange['ready'] = async function () {
 		await Promise.resolve(WorkerReady);
+		await Promise.resolve(CustomWorkers.ready());
 		return exchange;
+	}
+
+	exchange['addCurrency'] = (base: string, ...rest: any)=>{
+
+		if(exchange.hasOwnProperty(base)){
+			throw new Error("This property already exists.");
+		}
+
+		return Promise.resolve(
+			CustomWorkers.addCurrency.apply(CustomWorkers, [base, ...rest])
+		).then(()=>{
+			if(PricesWorker.isReady){
+				initialize();
+			}
+		});
+	};
+
+	exchange['removeCurrency'] = (base: string, quote?: string)=>{
+
+		if(CustomWorkers.list.includes(base)){
+			delete exchange[base];
+
+			const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat, CustomWorkers.list);
+
+			for(const currency of all_currencies){
+				if(exchange[currency]?.[base]){
+					delete exchange[currency]?.[base];
+				}
+			}
+		}
+
+		return CustomWorkers.removeCurrency(base, quote);
 	}
 
 	//Wait for updated lists before initializing 

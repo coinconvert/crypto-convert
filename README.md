@@ -68,7 +68,7 @@ Free public API
 <script src='https://coinconvert.net/assets/js/crypto-convert.min.js'></script>
 ```
 
-## Other parameters
+## Other Parameters
 
 Get crypto prices last updated timestamp (ms)
 ```javascript
@@ -108,7 +108,26 @@ console.log(convert.cryptoInfo);
 // }
 ```
 
+## Custom Plug-ins
 
+In cases when you want to support a custom currency you can do so like this:
 
+```javascript
+convert.addCurrency(
+	'ANYCURRENCY',  //Your custom currency symbol here
+	'USD', //The quote fiat price. Must be a supported fiat currency.
+	async fetchPrice()=>{
+		//...call the api here
+		return price;
+	}, 
+	10000 //Update interval in ms
+);
+```
 
+Adding custom plugins is useful for  supporting more fiats, precious metals, or anything that can be exchanged.
 
+For removing custom currencies:
+
+```javascript
+convert.removeCurrency('ANYCURRENCY');
+```

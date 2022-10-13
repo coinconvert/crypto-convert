@@ -1,11 +1,11 @@
 {
   "name": "crypto-convert",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Convert crypto to fiat and vice-versa instantly.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && node after_build.js && npm run test && npm run cdn",
-    "test": "mocha --exit",
+    "test": "mocha --exit --timeout 5000",
     "cdn": "webpack && node after_build.js --cdn",
     "api-types": "rests ./src/api.ts -t ./src/api.d.ts"
   },
