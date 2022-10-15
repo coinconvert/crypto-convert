@@ -283,10 +283,19 @@ const ConvertObject = function(){
 
 		let update = PricesWorker.setOptions(options);
 
-		if((options.crypto_interval || options.fiat_interval) && (
+		const workerIntervalChanged = (options.crypto_interval || options.fiat_interval) && (
 			options.crypto_interval !== PricesWorker.options.crypto_interval ||
 			options.fiat_interval !== PricesWorker.options.fiat_interval
-		)){
+		);
+		
+		if(workerIntervalChanged || 
+			(
+				options.hasOwnProperty('refreshCryptoList') && options.refreshCryptoList !== PricesWorker.options.refreshCryptoList
+			) ||
+			(
+				options.hasOwnProperty('serverSideCCAPI') && options.serverSideCCAPI !== PricesWorker.options.serverSideCCAPI
+			)
+		){
 
 			//Restart the worker in order to clear interval & update to new interval
 			let restart = update.restart();
@@ -351,6 +360,10 @@ const ConvertObject = function(){
 		}
 
 		return CustomWorkers.removeCurrency(base, quote);
+	}
+
+	PricesWorker.onCryptoListRefresh = ()=>{
+			initialize();
 	}
 
 	//Wait for updated lists before initializing 

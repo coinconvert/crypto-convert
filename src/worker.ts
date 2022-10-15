@@ -14,7 +14,6 @@ export interface Options {
 	 */
 	fiat_interval?: number,
 
-
 	/**
 	 * Calculate Average prices from multiple exchanges (Default: true)
 	 */
@@ -43,7 +42,19 @@ export interface Options {
 	/**
 	 * Callback to call on prices update
 	 */
-	onUpdate?: (tickers: any, isFiat?: boolean) => any
+	onUpdate?: (tickers: any, isFiat?: boolean) => any,
+
+
+	/**
+	 * Use the hosted version of the API on server-side as well.
+	 */
+	 serverSideCCAPI?: boolean,
+
+	 /**
+	  * Refresh crypto list (server-side only)
+	  */
+
+	 refreshCryptoList?: boolean,
 }
 
 export interface Tickers {
@@ -119,6 +130,7 @@ export interface PricesClass {
 	options: Options,
 	isRunning: boolean,
 	isReady: boolean,
+	onCryptoListRefresh: (list: any) => any,
 	/**
 	 * Metadata information about cryptocurrencies
 	 */
@@ -175,7 +187,8 @@ function Prices(initialOptions = {}) {
 		fiat_interval: (60 * 1e3 * 60), //Every 1 hour (server only)
 		calculateAverage: true,
 		onUpdate: undefined,
-
+		serverSideCCAPI: false,
+		refreshCryptoList: false,
 		//Enable all exchanges by default
 		...(this.exchanges.reduce((o: any, exchange: string) => ({
 			...o,
@@ -194,6 +207,8 @@ function Prices(initialOptions = {}) {
 	}
 
 	this.isReady = false;
+
+	this.onCryptoListRefresh;
 }
 
 /**
@@ -228,7 +243,7 @@ Prices.prototype.setOptions = function (o?: Options | ((currentOptions: Options)
 	}
 
 	//Update current prices
-	if (isBrowser) {
+	if (isBrowser || this.options.serverSideCCAPI) {
 		if(exchangesUpdated || averageUpdated){
 			return this.browserTicker();
 		}
@@ -307,12 +322,19 @@ Prices.prototype.updateFiat = async function () {
 }
 
 Prices.prototype.updateLists = async function () {
-	this.log("Updating top currency list...");
-
+	if (!this.data.crypto.last_updated) {
+		this.log("Updating top currency list...");
+	}
+	
 	try {
 		const getTopList = await API.coinmarketcap.top();
 		this.list.crypto = Object.keys(getTopList);
 		this.cryptoInfo = getTopList;
+
+		if(typeof this.onCryptoListRefresh == "function" && this.isReady){
+			this.onCryptoListRefresh(this.list.crypto);
+		}
+
 	} catch (err) {
 		console.error(`Failed fetching fiat prices from ECB`, err);
 	}
@@ -371,6 +393,24 @@ Prices.prototype.browserTicker = async function () {
 	return this;
 }
 
+Prices.prototype.browserLists = async function () {
+	try{
+		const getTopList = await API.coinconvert.list() as any;
+		this.list.crypto = Object.keys(getTopList.crypto);
+		this.list.fiat = getTopList.fiat;
+		this.cryptoInfo = getTopList.crypto;
+
+		if(typeof this.onCryptoListRefresh == "function" && this.isReady){
+			this.onCryptoListRefresh(this.list.crypto);
+		}
+	}
+	catch(err){
+		console.error('Failed fetching currencies list from API', err);
+	}
+
+	return this;
+}
+
 Prices.prototype.runBrowser = async function () {
 
 	if (typeof window !== "undefined" && window['__ccRunning']) {
@@ -381,26 +421,26 @@ Prices.prototype.runBrowser = async function () {
 	}
 
 	//First run only
-	if (!this.data?.crypto?.current) {
+	if (!this.isReady) {
 		await this.browserTicker();
 
 		//Update lists
-		const getTopList = await API.coinconvert.list() as any;
-		this.list.crypto = Object.keys(getTopList.crypto);
-		this.list.fiat = getTopList.fiat;
-		this.cryptoInfo = getTopList.crypto;
-	}
+		await this.browserLists();
 
-	this.isReady = true;
-
-	if (this.crypto_worker) {
-		clearInterval(this.crypto_worker);
+		if(!isBrowser && this.options.serverSideCCAPI && this.options.refreshCryptoList){
+			this.lists_worker = setInterval(
+				this.browserLists.bind(this),
+				86400 //every day
+			);
+		}
 	}
 
 	this.crypto_worker = setInterval(
 		this.browserTicker.bind(this),
 		this.options.crypto_interval
 	);
+
+	this.isReady = true;
 
 	if (typeof window !== "undefined") {
 		window['__ccRunning'] = true;
@@ -429,13 +469,24 @@ Prices.prototype.runServer = async function () {
 		this.options.fiat_interval
 	);
 
+	if(this.options.refreshCryptoList){
+		this.lists_worker = setInterval(
+			this.updateLists.bind(this),
+			86400 //every day
+		);
+	}
+	
 	return this;
 }
 
 Prices.prototype.run = function () {
+	if(this.isRunning || this.crypto_worker){
+		throw new Error("Crypto-convert is already running.");
+	}
+
 	this.isRunning = true;
 
-	if (isBrowser) {
+	if (isBrowser || this.options.serverSideCCAPI) {
 		return this.runBrowser();
 	}
 
@@ -444,8 +495,14 @@ Prices.prototype.run = function () {
 
 Prices.prototype.stop = function () {
 	clearInterval(this.crypto_worker);
-
 	clearInterval(this.fiat_worker);
+	this.crypto_worker = 0;
+	this.fiat_worker = 0;
+
+	if(this.lists_worker){
+		clearInterval(this.lists_worker);
+		this.lists_worker = 0;
+	}
 
 	this.isRunning = false;
 
