@@ -31,7 +31,7 @@ class CryptoConvert {
 		
 		this.worker = new PricesWorker(options);
 		this.workerReady = this.worker.run();
-		this.internalMethods = Object.keys(this);
+		this.internalMethods = Object.getOwnPropertyNames(CryptoConvert.prototype);
 		
 		Promise.resolve(this.workerReady).then(()=>{
 			this.populate();
