@@ -1,16 +1,16 @@
 
 import API from './api';
-import { getAverage, isBrowser } from './helpers';
+import { getAverage, isBrowser, isValidUrl } from './helpers';
 
 export interface Options {
 
 	/**
-	 * Crypto prices update interval in ms (Default: 5s)
+	 * Crypto prices update interval in ms (Default: 5s Node.js/15s browsers)
 	 */
 	cryptoInterval?: number,
 
 	/**
-	 * Fiat prices update interval in ms (Default: 1 hour)
+	 * Fiat prices update interval in ms (Default: 1 hour) `[server-side only]`
 	 */
 	fiatInterval?: number,
 
@@ -46,18 +46,28 @@ export interface Options {
 
 
 	/**
-	 * Use the hosted version of the API on server-side as well.
+	 * Use a custom server on the browsers side (default: https://api.coinconvert.net)
 	 */
-	serverSideCCAPI?: boolean,
+	serverHost?: string,
 
 	/**
-	 * Refresh crypto list (server-side only)
+	 * Use the hosted version of the API on server-side as well, instead of using the multiple exchanges API directly. `[server-side only]`
+	 */
+	useHostedAPI?: boolean,
+
+	/**
+	 * Refreshes crypto list. `[server-side only]`
 	 */
 
 	refreshCryptoList?: boolean,
 
 	/**
-	 * HTTP agent for server-side proxies
+	 * Change the number of supported cryptocurrencies. (Max: 1000) `[server-side only]`
+	 */
+	listLimit?: number, 
+
+	/**
+	 * HTTP agent for proxies support. `[server-side only]`
 	 */
 	HTTPAgent?: any
 }
@@ -171,8 +181,10 @@ class PricesWorker {
 		fiatInterval: (60 * 1e3 * 60), //Every 1 hour (server only)
 		calculateAverage: true,
 		onUpdate: undefined,
-		serverSideCCAPI: false,
+		serverHost: 'https://api.coinconvert.net',
+		useHostedAPI: false,
 		refreshCryptoList: true,
+		listLimit: 150,
 		//Enable all exchanges by default
 		...(this.exchanges.reduce((o: any, exchange: string) => ({
 			...o,
@@ -180,7 +192,21 @@ class PricesWorker {
 		}), {})),
 	};
 
-	log(..._: any) {
+	isReady = false;
+
+	isRunning = false;
+
+	private fiat_worker: NodeJS.Timer;
+
+	private crypto_worker: NodeJS.Timer;
+
+	private lists_worker : NodeJS.Timer;
+
+	private hostedAPI: typeof API.coinconvert;
+	
+	onCryptoListRefresh: (list: any) => any;
+	
+	private log(..._: any) {
 		if (!isBrowser && process?.env?.NODE_ENV?.startsWith('dev')) {
 			Array.from(arguments).forEach((arg) => {
 				console.log(arg);
@@ -188,28 +214,16 @@ class PricesWorker {
 		}
 	}
 
-	isReady = false;
+	constructor(o?: Options | ((currentOptions: Options) => Options)) {
 
-	isRunning = false;
-
-	fiat_worker: NodeJS.Timer;
-
-	crypto_worker: NodeJS.Timer;
-
-	lists_worker : NodeJS.Timer;
-
-	onCryptoListRefresh: (list: any) => any;
-
-	constructor(options: Options = {}) {
-		this.options = {
-			...this.options,
-			...options
+		if(o){
+			this.setOptions(o);
 		}
 
-		if (options.hasOwnProperty('HTTPAgent')) {
-			API.set({
+		if(!this.hostedAPI){
+			this.hostedAPI = new API.coinconvert({
 				$options: {
-					fetch_agent: options.HTTPAgent
+					base: this.options.serverHost
 				}
 			});
 		}
@@ -224,18 +238,13 @@ class PricesWorker {
 			(o || {});
 
 		if (isBrowser && !isNaN(newOptions.cryptoInterval) && newOptions.cryptoInterval < 10000) {
-			console.warn(`The minimum allowed interval on frontend is 10s.`);
+			console.error(`The minimum allowed interval on frontend is 10s. You should host your own server API if you want to go lower.
+			
+			For the server API routes see the CoinConvert schema on https://github.com/coinconvert/crypto-convert/blob/main/src/api.ts;
+			`);
 		}
 
-		if (newOptions.hasOwnProperty('HTTPAgent')) {
-			API.set({
-				$options: {
-					fetch_agent: newOptions.HTTPAgent
-				}
-			});
-		}
-
-		//Check if new options affect exchanges
+		//Check if new options affect prices
 		let exchangesUpdated = false,
 			averageUpdated = newOptions.hasOwnProperty('calculateAverage') && newOptions.calculateAverage !== this.options.calculateAverage;
 		for (const exchange of this.exchanges) {
@@ -245,26 +254,63 @@ class PricesWorker {
 			}
 		}
 
-
 		//Save options
+		if (newOptions.hasOwnProperty('HTTPAgent')) {
+			API.set({
+				$options: {
+					fetch_agent: newOptions.HTTPAgent
+				}
+			});
+		}
+
+		if(newOptions.serverHost && isValidUrl(newOptions.serverHost)){
+			this.options.serverHost = newOptions.serverHost;
+			this.hostedAPI = new API.coinconvert({
+				$options: {
+					base: newOptions.serverHost
+				}
+			});
+		}
+
 		this.options = {
 			...this.options,
 			...newOptions,
-			cryptoInterval: isNaN(newOptions.cryptoInterval) ? this.options.cryptoInterval : Math.max(isBrowser ? 10000 : 1000, newOptions.cryptoInterval),
-			fiatInterval: isNaN(newOptions.fiatInterval) ? this.options.fiatInterval : Math.max(60 * 30 * 1e3, newOptions.fiatInterval),
+
+			/**
+			 * Minimum interval set to 1s on Node.js and 10s on Browsers.
+			 * You can go up to 1s on browsers if you have set a custom server host.
+			 */
+			cryptoInterval: isNaN(newOptions.cryptoInterval) ? 
+				this.options.cryptoInterval : 
+				Math.max(isBrowser && !this.isCustomServerHost ? 10000 : 1000, newOptions.cryptoInterval),
+			
+			fiatInterval: isNaN(newOptions.fiatInterval) ? 
+				this.options.fiatInterval : 
+				Math.max(60 * 30 * 1e3, newOptions.fiatInterval),
+
+			/**
+			 * Maximum 1000
+			 * If the limit is too high, it might cause some memory and performance issues.
+			 */
+			listLimit: isNaN(newOptions.listLimit) ? 
+				this.options.listLimit : 
+				Math.max(1, Math.min(1000, parseInt(newOptions.listLimit + '')))
 		}
 
 		//Update current prices
-		if (isBrowser || this.options.serverSideCCAPI) {
-			if (exchangesUpdated || averageUpdated) {
+		if((exchangesUpdated || averageUpdated) && this.isReady){
+			if (isBrowser || this.options.useHostedAPI) {
 				return this.browserTicker();
+			} else {
+				this.data.crypto.current = this.joinPrices(this.data);
 			}
-
-		} else {
-			this.data.crypto.current = this.joinPrices(this.data);
 		}
 
 		return this;
+	}
+
+	get isCustomServerHost(){
+		return !/^https?:\/\/api\.coinconvert\.net/i.test(this.options.serverHost);
 	}
 
 	async updateCrypto() {
@@ -339,7 +385,9 @@ class PricesWorker {
 		}
 
 		try {
-			const getTopList = await API.coinmarketcap.top() as any;
+			const getTopList = await API.coinmarketcap.top({
+				limit: this.options.listLimit + ''
+			}) as any;
 			this.list.crypto = Object.keys(getTopList);
 			this.cryptoInfo = getTopList;
 
@@ -387,7 +435,7 @@ class PricesWorker {
 
 			const disabledExchanges = this.exchanges.filter((exchange: string) => !currentOptions[exchange]);
 
-			const data = await API.coinconvert.ticker(disabledExchanges.length ? {
+			const data = await this.hostedAPI.ticker(disabledExchanges.length ? {
 				'filterExchanges': disabledExchanges,
 				'noAverage': !this.options.calculateAverage ? true : undefined
 			} : {}) as any;
@@ -407,7 +455,7 @@ class PricesWorker {
 
 	async browserLists() {
 		try {
-			const getTopList = await API.coinconvert.list() as any;
+			const getTopList = await this.hostedAPI.list() as any;
 			this.list.crypto = Object.keys(getTopList.crypto);
 			this.list.fiat = getTopList.fiat;
 			this.cryptoInfo = getTopList.crypto;
@@ -443,7 +491,7 @@ class PricesWorker {
 				return false;
 			}
 
-			if (!isBrowser && this.options.serverSideCCAPI && this.options.refreshCryptoList) {
+			if (!isBrowser && this.options.useHostedAPI && this.options.refreshCryptoList) {
 				this.lists_worker = setInterval(
 					this.browserLists.bind(this),
 					86400 //every day
@@ -506,7 +554,7 @@ class PricesWorker {
 
 		this.isRunning = true;
 
-		if (isBrowser || this.options.serverSideCCAPI) {
+		if (isBrowser || this.options.useHostedAPI) {
 			return this.runBrowser();
 		}
 
@@ -514,9 +562,6 @@ class PricesWorker {
 	}
 
 	stop() {
-
-		console.log(this.isRunning, this.crypto_worker);
-
 		this.isRunning = false;
 
 		clearInterval(this.crypto_worker);

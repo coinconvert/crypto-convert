@@ -268,7 +268,10 @@ class CryptoConvert {
 				options.hasOwnProperty('refreshCryptoList') && options.refreshCryptoList !== this.worker.options.refreshCryptoList
 			) ||
 			(
-				options.hasOwnProperty('serverSideCCAPI') && options.serverSideCCAPI !== this.worker.options.serverSideCCAPI
+				options.hasOwnProperty('useHostedAPI') && options.useHostedAPI !== this.worker.options.useHostedAPI
+			) ||
+			(
+				options.listLimit && options.listLimit != this.worker.options.listLimit
 			)
 		){
 
@@ -278,7 +281,15 @@ class CryptoConvert {
 
 			//Restart the worker in order to clear interval & update to new interval
 			this.workerReady = Promise.resolve(this.worker.setOptions(options))
-			.then(()=>this.worker.restart()); 
+			.then(async ()=>{
+				await this.worker.restart();
+
+				if(options.listLimit){
+					this.populate();
+				}
+
+				return this.worker;
+			}); 
 
 			return this.worker;
 		}

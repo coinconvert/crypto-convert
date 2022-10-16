@@ -6,12 +6,6 @@ import {formatNumber} from './dist/helpers.js';
 const convert = new Convert();
 
 const exchanges = ['binance', 'bitfinex', 'coinbase', 'kraken'];
-const onlyThisExchange = (exchange)=>{
-    return exchanges.reduce((o,v)=>({
-        ...o,
-        [v]: exchange == v ? true : false
-    }),{});
-};
 
 describe('Rests API Main', function () {
     
@@ -83,7 +77,7 @@ describe('Rests API Main', function () {
 	});
 
     /**
-     * We compare all exchange pairs to look for major differences that indicate that the pricing is not correct.
+     * Compare all exchange pairs to look for major differences that indicate that the pricing is not correct.
      */
     it('Prices are correct', async function () {
 		await convert.ready();

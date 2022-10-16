@@ -72,4 +72,12 @@ export function isEmpty(obj: any) {
    	return true;
 }
 
+export function isValidUrl(string: string) {
+    try {
+      return /^https?\:\/\//.test((new URL(string)).protocol);
+    } catch (err) {
+      return false;  
+    }
+}
+
 export const isBrowser = (typeof window !== "undefined" && window.document);

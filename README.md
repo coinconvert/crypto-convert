@@ -62,7 +62,7 @@ const convert = new CryptoConvert(/*options?*/);
 
 ## Configuration
 
-Here are the available options you can specify on initialization:
+Here are some of the options you can specify on initialization:
 
 ```javascript
 new CryptoConvert({
