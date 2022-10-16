@@ -58,6 +58,7 @@ const convert = new CryptoConvert(/*options?*/);
 
 })();
 ```
+`Note`: You should only initialize the CryptoConvert class once. It's recommend to make a seperate file for it.
 
 ## Configuration
 
