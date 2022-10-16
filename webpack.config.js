@@ -11,7 +11,7 @@ module.exports = [
 			library: { // There is also an old syntax for this available (click to show)
 				type: "umd", // universal module definition
 				// the type of the exported library
-				name: "convert",
+				name: "CryptoConvert",
 			},
 			globalObject: 'this'
 		},

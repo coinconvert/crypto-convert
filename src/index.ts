@@ -1,167 +1,90 @@
-import { formatNumber, isEmpty } from "./helpers";
-import PricesWorker, { Options, PricesClass, Tickers, WorkerReady } from "./worker";
-import { Pairs } from './paris';
-import CustomCurrency from "./custom";
-
-const CustomWorkers = new CustomCurrency();
-
-interface Convert extends Pairs {
-	/**
-	 * Update options
-	 */
-	setOptions: (options?: Options)=> PricesClass,
-	
-	/**
-	 * Price Tickers
-	 */
-	ticker: Tickers,
-
-	/**
-	 * Supported currencies list
-	 */
-	list: {
-		crypto: string[],
-		fiat: string[]
-	},
-
-	/**
-	 * Metadata information about cryptocurrencies
-	 */
-	cryptoInfo:{	
-		[crypto: string]:{
-			id: number,
-			symbol: string,
-			title: string,
-			logo: string,
-			rank: number
-		}
-	}
-
-	/**
-	 * Quick check if cache has loaded.
-	 */
-	isReady: boolean,
-
-	/**
-	 * Get crypto prices last updated ms
-	 */
-	lastUpdated: number,
-	
-	/**
-	 * Promise function that resolves when cache has loaded.
-	 */
-	ready: ()=> Promise<Convert>,
-
-	/**
-	 * Stop the worker. 
-	 * 
-	 * It's recommended to do this on Component unmounts (i.e if you are using React).
-	 */
-	stop: ()=> PricesClass,
-
-	/**
-	 * Re-start the worker when it has been stopped.
-	 * 
-	 * Returns a promise to wait for when it's ready.
-	 * 
-	 * ```javascript
-	 * const is_ready = await convert.start();
-	 * ```
-	 */
-
-	start: ()=> Promise<PricesClass>,
-
-
-	/**
-	 * Add a custom currency fetcher. Can be anything.
-	 * 
-	 * @example
-	 * ```javascript
-	 * convert.addCurrency('ANY','USD', async fetchPrice()=>{
-	 * 		//...call your api here
-	 * 		return price;
-	 * }, 10000);
-	 * ```
-	 */
-	addCurrency: typeof CustomWorkers.addCurrency,
-
-	/**
-	 * Remove custom currency fetcher.
-	 */
-	removeCurrency: (base: string, quote?: string)=>void
-
-	/*
-		[fromCurrency: string]: {
-			[toCurrency: string]: (amount: number)=> number | false | null
-		}
-	*/
-}
-
-/**
- * This is the main object
+/*!
+ * crypto-convert (c) 2022
+ * Author: Elis
+ * License: https://github.com/coinconvert/crypto-convert
  */
-const ConvertObject = function(){
-	
-	const convert = {
-		get isReady() {
-			return PricesWorker.isReady;
-		},
-		get list(){
-			return {
-				'crypto': PricesWorker.list.crypto.concat(CustomWorkers.list),
-				'fiat': PricesWorker.list.fiat
-			}
-		},
-		get cryptoInfo(){
-			return PricesWorker.cryptoInfo
-		},
-		get lastUpdated(){
-			return PricesWorker.data.crypto.last_updated
-		},
-		get ticker(){
-			return PricesWorker.data;
-		}
-	}
 
-	//Get symbol price from tickers
-	const getPrice = function(coin: string,	to='USD'){
+import { formatNumber, isBrowser, isEmpty } from "./helpers";
+import PricesWorker, { Options } from "./worker";
+import { Pairs } from './paris';
+import CustomWorkers from "./custom";
+
+const customWorkers = new CustomWorkers();
+
+
+class CryptoConvert {
+
+	private worker: PricesWorker;
+
+	private internalMethods: string[];
 	
-		var customResult = CustomWorkers.ticker[coin+to] || (
-			CustomWorkers.ticker[to + coin] ? 1/CustomWorkers.ticker[to + coin] : null
+	private workerReady: Promise<false | PricesWorker>;
+
+	constructor(options: Options = {}){
+
+		if(isBrowser){
+			if(window['__ccInitialized']){
+				throw new Error("You have already initalized one instance of crypto-convert. You cannot initialize multiple instances.");
+			}
+			window['__ccInitialized'] = true;
+		}
+		
+		this.worker = new PricesWorker(options);
+		this.workerReady = this.worker.run();
+		this.internalMethods = Object.keys(this);
+		
+		Promise.resolve(this.workerReady).then(()=>{
+			this.populate();
+
+			this.worker.onCryptoListRefresh = ()=>{
+				this.populate();
+			}
+		});
+	}
+	
+	/**
+	 * Get a symbol price from tickers
+	 */
+	protected getPrice(coin: string, to='USD'){
+	
+		var customResult = customWorkers.ticker[coin+to] || (
+			customWorkers.ticker[to + coin] ? 1/customWorkers.ticker[to + coin] : null
 		);
 	
-		var result = PricesWorker.data.crypto.current[coin + to] || (
-			PricesWorker.data.crypto.current[to + coin] ? 1/PricesWorker.data.crypto.current[to + coin] : null
+		var result = this.worker.data.crypto.current[coin + to] || (
+			this.worker.data.crypto.current[to + coin] ? 1/this.worker.data.crypto.current[to + coin] : null
 		);
 	
 		return customResult || result;
 	}
-	
-	//Conversion function
-	const wrapper = function(coin: string, currency: string){
+
+	/**
+	 * This is where conversion happens.
+	 */
+	private wrapper(coin: string, currency: string){
 		var coin = coin;
 		var toCurrency = currency;
-		
-		var doExchange = function(fromAmount: number){
-			
-			if(isEmpty(PricesWorker.data.crypto.current) || isEmpty(PricesWorker.data.fiat.current)){
+
+		const doExchange = (function(fromAmount: number){
+
+			if(isEmpty(this.worker.data.crypto.current) || isEmpty(this.worker.data.fiat.current)){
 				console.warn("[~] Prices are loading.\nYou should use `await convert.ready()` to make sure prices are loaded before calling convert.");
 				return false;
 			}
-
+		
 			if(!fromAmount){
 				return false;
 			}
-
+		
 			fromAmount = formatNumber(fromAmount);
-			
+
 			if(isNaN(fromAmount)){
 				return false;
 			}
-			
-			const fiatCurrencies = PricesWorker.data.fiat.current;
-			const cryptoCurrenciesList = PricesWorker.list.crypto.concat(CustomWorkers.list);
 
+			const fiatCurrencies = this.worker.data.fiat.current;
+			const cryptoCurrenciesList = this.worker.list.crypto.concat(customWorkers.list);
+		
 			//Same
 			if(toCurrency == coin){
 				return fromAmount;
@@ -169,71 +92,85 @@ const ConvertObject = function(){
 		
 			//Crypto to Crypto
 			if(cryptoCurrenciesList.includes(coin) && cryptoCurrenciesList.includes(toCurrency)){
-				let exchangePrice = getPrice(coin, toCurrency) ||
-					wrapper("USD", toCurrency)(wrapper(coin, "USD")(1) as number);
-				
-				
+				let exchangePrice = this.getPrice(coin, toCurrency) ||
+					this.wrapper("USD", toCurrency)(this.wrapper(coin, "USD")(1) as number);
+
+
 				return formatNumber(exchangePrice * fromAmount, 8); 
 			}
-			
+
 			//Fiat to Fiat
 			if(fiatCurrencies[coin] && fiatCurrencies[toCurrency]){
-				
+
 				return formatNumber(
 					((fromAmount / fiatCurrencies[coin]) * fiatCurrencies[toCurrency]),
 					4
 				);
 			}
-			
-			
+
+
 			//Crypto->Fiat || Crypto->BTC->Fiat
-			var getCryptoPrice = function (coin: string) {
-				var coinPrice = getPrice(coin) ||
-					wrapper("BTC","USD")(getPrice(coin,"BTC") as number) || 
-					wrapper("ETH","USD")(getPrice(coin,"ETH") as number);
-				
+			var getCryptoPrice = (function (coin: string) {
+				var coinPrice = this.getPrice(coin) ||
+					this.wrapper("BTC","USD")(this.getPrice(coin,"BTC") as number) || 
+					this.wrapper("ETH","USD")(this.getPrice(coin,"ETH") as number);
+
 				return coinPrice;
-			}
-			
+			}).bind(this);
+
 			//Crypto to Fiat
 			if(fiatCurrencies[toCurrency]){
 				let usdPrice = getCryptoPrice(coin);
 				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to chosen FIAT
 				return formatNumber(exchangePrice * fromAmount, 8);
 			}
-
+		
 			//Fiat to Crypto
 			if(fiatCurrencies[coin]){
 				let usdPrice = getCryptoPrice(toCurrency);
 				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[coin]; //Convert USD to chosen FIAT
 				return formatNumber(fromAmount / exchangePrice, 8);
 			}
-
+		
 			return null;
-		}
+		}).bind(this);
 		return doExchange;
 	}
 
-	//Build pairs object & types
-	const initialize = function () {
+	
+	private isSafeKey(key: string){
+
+		const functionProto = function(){};
+
+		return (
+			!this.internalMethods.includes(key) &&
+			!key.startsWith('__') &&
+			!functionProto[key]
+		);
+	}
+	
+	/**
+	 * Recursively creates the conversion wrapper functions for all the currencies.
+	 */
+	private populate () {
 		let types = '';
 
 		//Generate typescript interface
 		types += `type amount = (amount: number | string) => number | false | null;`;
 		types +='\nexport interface Pairs {';
 
-		const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat, CustomWorkers.list);
+		const all_currencies = this.worker.list.crypto.concat(this.worker.list.fiat, customWorkers.list);
 
 		for(var i = 0; i < all_currencies.length; i++) {
 			var coin = all_currencies[i];
 			
 
-			if(!coin || typeof coin !== "string"){
+			if(!coin || typeof coin !== "string" || !this.isSafeKey(coin)){
 				continue;
 			}
 
-			if(!convert[coin]) {
-				convert[coin] = {};
+			if(!this[coin]) {
+				this[coin] = {};
 			}
 			
 
@@ -242,11 +179,11 @@ const ConvertObject = function(){
 			for(var a = 0; a < all_currencies.length; a++) {
 				var currency = all_currencies[a];
 
-				if(!currency || typeof currency !== "string"){
+				if(!currency || typeof currency !== "string" || !this.isSafeKey(coin)){
 					continue;
 				}
 
-				convert[coin][currency] = wrapper(coin, currency);
+				this[coin][currency] = this.wrapper(coin, currency);
 
 				types += `\n\t\t'${currency.replace(/\'/g,"\\'")}': amount,`;
 			}
@@ -277,106 +214,156 @@ const ConvertObject = function(){
 		}
 	};
 
-	//These below here are just proxy methods to the worker object.
+	/**
+	 * Quick check if cache has loaded.
+	 */
+	get isReady() {
+		return this.worker.isReady;
+	}
+	
+	/**
+	 * Supported currencies list
+	 */
+	get list(){
+		return {
+			'crypto': this.worker.list.crypto.concat(customWorkers.list),
+			'fiat': this.worker.list.fiat
+		}
+	}
 
-	convert['setOptions'] = function (options: Options) {
+	/**
+	 * Metadata information about cryptocurrencies
+	 */
+	get cryptoInfo(){
+		return this.worker.cryptoInfo
+	}
 
-		let update = PricesWorker.setOptions(options);
+	/**
+	 * Get crypto prices last updated ms
+	 */
+	get lastUpdated(){
+		return this.worker.data.crypto.last_updated
+	}
+	
 
-		const workerIntervalChanged = (options.crypto_interval || options.fiat_interval) && (
-			options.crypto_interval !== PricesWorker.options.crypto_interval ||
-			options.fiat_interval !== PricesWorker.options.fiat_interval
+	/**
+	 * Price Tickers
+	 */
+	get ticker(){
+		return this.worker.data;
+	}
+
+	/**
+	 * Update options
+	 */
+	setOptions(options: Options){
+
+		const workerIntervalChanged = (options.cryptoInterval || options.fiatInterval) && (
+			options.cryptoInterval !== this.worker.options.cryptoInterval ||
+			options.fiatInterval !== this.worker.options.fiatInterval
 		);
 		
 		if(workerIntervalChanged || 
 			(
-				options.hasOwnProperty('refreshCryptoList') && options.refreshCryptoList !== PricesWorker.options.refreshCryptoList
+				options.hasOwnProperty('refreshCryptoList') && options.refreshCryptoList !== this.worker.options.refreshCryptoList
 			) ||
 			(
-				options.hasOwnProperty('serverSideCCAPI') && options.serverSideCCAPI !== PricesWorker.options.serverSideCCAPI
+				options.hasOwnProperty('serverSideCCAPI') && options.serverSideCCAPI !== this.worker.options.serverSideCCAPI
 			)
 		){
 
+			if(!this.worker.isReady){
+				throw new Error("You cannot set these options here because CryptoConvert is not ready yet. Instead set the options on the constructor parameter.");
+			}
+
 			//Restart the worker in order to clear interval & update to new interval
-			let restart = update.restart();
-			convert['ready'] = async function () {
-				await Promise.resolve(restart);
-				await Promise.resolve(CustomWorkers.ready());
-				return convert;
-			};
-			return restart;
+			this.workerReady = Promise.resolve(this.worker.setOptions(options))
+			.then(()=>this.worker.restart()); 
+
+			return this.worker;
 		}
 
-		return update;
+		return this.worker.setOptions(options);
 	}
 
-	convert['stop'] = function(){
-		return PricesWorker.stop();
+	/**
+	 * Stop the worker. 
+	 * 
+	 * It's recommended to do this on Component unmounts (i.e if you are using React).
+	 */
+	stop(){
+		return this.worker.stop();
 	}
 
-	convert['start'] = function(){
-		let restart = PricesWorker.restart();
-		convert['ready'] = async function () {
-			await Promise.resolve(restart);
-			await Promise.resolve(CustomWorkers.ready());
-			return convert;
-		};
-		return restart;
+	/**
+	 * Re-start the worker when it has been stopped.
+	 */
+	restart(){
+		this.workerReady = this.worker.restart();
+		return this.workerReady;
 	}
 
-	convert['ready'] = async function () {
-		await Promise.resolve(WorkerReady);
-		await Promise.resolve(CustomWorkers.ready());
-		return convert;
+	/**
+	 * Promise function that resolves when cache has loaded.
+	 */
+	async ready(){
+		await Promise.resolve(this.workerReady);
+		await Promise.resolve(customWorkers.ready());
+		return this;
 	}
 
-	convert['addCurrency'] = (base: string, ...rest: any)=>{
+	/**
+	 * Add a custom currency fetcher. Can be anything.
+	 * 
+	 * @example
+	 * ```javascript
+	 * convert.addCurrency('ANY','USD', async fetchPrice()=>{
+	 * 		//...call your api here
+	 * 		return price;
+	 * }, 10000);
+	 * ```
+	 */
+	async addCurrency(base: string, ...rest: any): Promise<void>{
 
-		if(convert.hasOwnProperty(base)){
+		if(this.hasOwnProperty(base)){
 			throw new Error("This property already exists.");
 		}
 
 		return Promise.resolve(
-			CustomWorkers.addCurrency.apply(CustomWorkers, [base, ...rest])
+			customWorkers.addCurrency.apply(customWorkers, [base, ...rest])
 		).then(()=>{
-			if(PricesWorker.isReady){
-				initialize();
+			if(this.worker.isReady){
+				this.populate();
 			}
 		});
 	};
 
-	convert['removeCurrency'] = (base: string, quote?: string)=>{
+	/**
+	 * Remove custom currency fetcher.
+	 */
+	removeCurrency(base: string, quote?: string){
 
-		if(CustomWorkers.list.includes(base)){
-			delete convert[base];
+		if(customWorkers.list.includes(base) && this.isSafeKey(base)){
+			delete this[base];
 
-			const all_currencies = PricesWorker.list.crypto.concat(PricesWorker.list.fiat, CustomWorkers.list);
+			const all_currencies = this.worker.list.crypto.concat(this.worker.list.fiat, customWorkers.list);
 
 			for(const currency of all_currencies){
-				if(convert[currency]?.[base]){
-					delete convert[currency]?.[base];
+				if(this[currency]?.[base]){
+					delete this[currency]?.[base];
 				}
 			}
 		}
 
-		return CustomWorkers.removeCurrency(base, quote);
+		return customWorkers.removeCurrency(base, quote);
 	}
+}
 
-	PricesWorker.onCryptoListRefresh = ()=>{
-			initialize();
-	}
-
-	//Wait for updated lists before initializing 
-	Promise.resolve(WorkerReady).then(()=>(
-		initialize()
-	));
-
-	return convert;
-}();
 
 /**
  * Convert crypto to fiat and vice-versa.
  * 
+ * @example
  * ```javascript
  * convert.BTC.USD(1);
  * convert.USD.BTC(1);
@@ -385,30 +372,15 @@ const ConvertObject = function(){
  * convert.USD.EUR(1);
  * ```
  * 
- * To check supported currencies:
- * ```javascript
- * let supportedCurrencies = convert.list;
- * ```
+ * @see {@link https://github.com/coinconvert/crypto-convert Documentation}
  * 
- * To change options:
- * 
- * ```javascript
- * convert.setOptions({
- *		crypto_interval: 5000, //Crypto prices update interval, default every 5 seconds
- *		fiat_interval: (60 * 1e3 * 60), //Fiat prices update interval, default every 1 hour
- *		binance: true, //Use binance rates
- *		bitfinex: true, //Use bitfinex rates
- *		coinbase: true, //Use coinbase rates
- *		onUpdate: (tickers, isFiat)=> any //Callback to run on prices update	
- * });
- * ```
  */
-const convert = ConvertObject as unknown as Convert;
+interface CryptoConvert extends Pairs{}
 
 //@ts-ignore
-convert.default = convert;
+CryptoConvert.default = CryptoConvert;
 if(typeof module !== "undefined" && module.exports){
-	module.exports = convert;
+	module.exports = CryptoConvert;
 }
 
-export default convert;
+export default CryptoConvert;

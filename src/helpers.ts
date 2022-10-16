@@ -71,3 +71,5 @@ export function isEmpty(obj: any) {
    	for (var _ in obj) { return false; }
    	return true;
 }
+
+export const isBrowser = (typeof window !== "undefined" && window.document);

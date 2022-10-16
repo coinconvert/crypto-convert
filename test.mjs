@@ -1,8 +1,10 @@
 
 import assert from 'assert';
-import convert from './dist/index.js';
+import Convert from './dist/index.js';
 import {formatNumber} from './dist/helpers.js';
-  
+
+const convert = new Convert();
+
 const exchanges = ['binance', 'bitfinex', 'coinbase', 'kraken'];
 const onlyThisExchange = (exchange)=>{
     return exchanges.reduce((o,v)=>({

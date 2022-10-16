@@ -1,6 +1,6 @@
-import PricesWorker from './worker';
+import { initialCoinList } from "./worker";
 
-class CustomCurrency{
+class CustomWorkers{
 
 	public ticker: {
 		[pair: string]: number
@@ -25,12 +25,12 @@ class CustomCurrency{
 
 	async addCurrency(
 		base:  string,
-		quote: keyof typeof PricesWorker.data.fiat.current,
+		quote: string,
 		getter: ()=>number | Promise<number>,
 		interval?: number,
 	) {
 		
-		if(typeof base !== "string" || typeof quote !== "string" || !PricesWorker.list.fiat.includes(quote)){
+		if(typeof base !== "string" || typeof quote !== "string" || !initialCoinList.fiat.includes(quote)){
 			throw new Error("Invalid currency pair.");
 		}
 		
@@ -88,5 +88,5 @@ class CustomCurrency{
 
 }
 
-export default CustomCurrency;
+export default CustomWorkers;
 
