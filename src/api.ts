@@ -243,9 +243,9 @@ const API = Rests({
 			path: "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
 			on_success: function (response) {
 				var xml = response.text;
-				var currencies = xml.match(/(?<=currency=["'])([A-Za-z]+)/gi)
-				var rates = xml.match(/(?<=rate=["'])([.0-9]+)/gi);
-				var full = currencies.reduce((obj, key, index) => ({ ...obj, [key]: rates[index] }), {});
+				var currencies = [...xml.matchAll(/currency=["']([A-Za-z]+)["']/gi)]
+				var rates = [...xml.matchAll(/rate=["']([.0-9]+)["']/gi)];
+				var full = currencies.reduce((obj, v, index) => ({ ...obj, [v[1]]: rates[index][1] }), {});
 				full['EUR'] = 1 //Base is in EUR
 				return full;
 			}
