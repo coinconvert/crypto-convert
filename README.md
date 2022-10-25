@@ -13,7 +13,7 @@ Convert crypto to fiat and vice-versa instantly.
 - Price & Ticker information updated on a configurable interval from multiple secure sources (Binance, Bitfinex, Coinbase, Kraken)
 - Any pair can be converted, be it Crypto -> Crypto or Fiat -> Crypto.
 
-<a href='https://oh.gold' target='_blank'><img src='https://oh.gold/assets/img/general.jpg' width="450px"></a>
+<a href='https://coinconvert.net' target='_blank'><img src='https://coinconvert.net/assets/img/general.jpg' width="450px"></a>
 
 ## HTTP API
 Free public API

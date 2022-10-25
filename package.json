@@ -1,6 +1,6 @@
 {
   "name": "crypto-convert",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "Convert crypto to fiat and vice-versa instantly.",
   "main": "dist/index.js",
   "scripts": {
@@ -31,7 +31,7 @@
   "bugs": {
     "url": "https://github.com/coinconvert/crypto-convert/issues"
   },
-  "homepage": "https://oh.gold",
+  "homepage": "https://coinconvert.net",
   "dependencies": {
     "rests": "^1.0.9"
   },
