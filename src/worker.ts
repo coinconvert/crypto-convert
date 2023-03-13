@@ -50,6 +50,17 @@ export interface Options {
 	 */
 	serverHost?: string,
 
+
+	/**
+	 * The behaviour when disabling exchanges (default: saveLastCache) `[server-side only]`
+	 * 
+	 * - `"saveAllCache"`: Rates are not used on conversions but all the exchanges are still polled and cached internally so you can enable/disable exchanges seamlessly.
+	 * - `"saveLastCache"`: Disabled exchanges are not polled and saved on cache. When switching between enabled/disabled the last cache will be used until prices/cache is updated on the next interval.
+	 * - `"noCache"`: Exchanges are not polled and saved on cache when disabled, though when switching between enabled/disabled the prices will be updated by making new requests to the exchanges.
+	 */
+
+	disableExchangeMode?: "saveAllCache" | "saveLastCache" | "noCache",
+	
 	/**
 	 * Use the hosted version of the API on server-side as well, instead of using the multiple exchanges API directly. `[server-side only]`
 	 */
@@ -185,6 +196,7 @@ class PricesWorker {
 		useHostedAPI: false,
 		refreshCryptoList: true,
 		listLimit: 150,
+		disableExchangeMode: "saveLastCache",
 		//Enable all exchanges by default
 		...(this.exchanges.reduce((o: any, exchange: string) => ({
 			...o,
@@ -246,7 +258,8 @@ class PricesWorker {
 
 		//Check if new options affect prices
 		let exchangesUpdated = false,
-			averageUpdated = newOptions.hasOwnProperty('calculateAverage') && newOptions.calculateAverage !== this.options.calculateAverage;
+			averageUpdated = newOptions.hasOwnProperty('calculateAverage') && newOptions.calculateAverage !== this.options.calculateAverage,
+			disabledExchangesModeUpdated = newOptions['disableExchangeMode'] === 'saveAllCache' && this.options.disableExchangeMode !== 'saveAllCache';
 		for (const exchange of this.exchanges) {
 			if (newOptions.hasOwnProperty(exchange) && newOptions[exchange] !== this.options[exchange]) {
 				exchangesUpdated = true;
@@ -302,6 +315,10 @@ class PricesWorker {
 			if (isBrowser || this.options.useHostedAPI) {
 				return this.browserTicker();
 			} else {
+
+				if(this.options.disableExchangeMode === 'noCache' || disabledExchangesModeUpdated){
+					return this.updateCrypto();
+				}
 				this.data.crypto.current = this.joinPrices(this.data);
 			}
 		}
@@ -327,6 +344,11 @@ class PricesWorker {
 			current = {};
 
 		for (const ticker in tickers) {
+
+			if(!this.options[ticker] && this.options.disableExchangeMode !== 'saveAllCache'){
+				continue;
+			}
+
 			try {
 				this.data.crypto[ticker] = await tickers[ticker]();
 
