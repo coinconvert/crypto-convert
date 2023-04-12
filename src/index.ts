@@ -6,7 +6,7 @@
 
 import { formatNumber, isBrowser, isEmpty } from "./helpers";
 import PricesWorker, { Options } from "./worker";
-import { Pairs } from './paris';
+import { Pairs } from './pairs';
 import CustomWorkers from "./custom";
 
 const customWorkers = new CustomWorkers();
@@ -202,7 +202,7 @@ class CryptoConvert {
 						const fs = require('fs');
 						const path = require('path');
 						const isDist = path.basename(__dirname) == 'dist';
-						const typesFile = path.join(__dirname, isDist ? 'paris.d.ts' : 'paris.ts');
+						const typesFile = path.join(__dirname, isDist ? 'pairs.d.ts' : 'pairs.ts');
 
 						fs.writeFileSync(typesFile, types, 'utf-8');
 					`);
