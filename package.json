@@ -1,6 +1,6 @@
 {
   "name": "crypto-convert",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Convert crypto to fiat and vice-versa instantly.",
   "main": "dist/index.js",
   "scripts": {
