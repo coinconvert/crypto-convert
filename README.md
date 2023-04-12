@@ -142,3 +142,9 @@ For removing custom currencies:
 ```javascript
 convert.removeCurrency('ANYCURRENCY');
 ```
+## Tests
+
+```
+npm run build
+npm test
+```
