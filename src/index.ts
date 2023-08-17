@@ -11,6 +11,21 @@ import CustomWorkers from "./custom";
 
 const customWorkers = new CustomWorkers();
 
+interface ExtendedOptions extends Options {
+	/**
+	 * The converted value number precision
+	 */
+	precision?: {
+		/**
+		 * Default 4
+		 */
+		fiat?: number,
+		/**
+		 * Default 8
+		 */
+		crypto?: number
+	}
+}
 
 class CryptoConvert {
 
@@ -20,7 +35,12 @@ class CryptoConvert {
 	
 	private workerReady: Promise<false | PricesWorker>;
 
-	constructor(options: Options = {}){
+	private precision: ExtendedOptions['precision'] = {
+		fiat: 4,
+		crypto: 8
+	};
+
+	constructor(options: ExtendedOptions = {}){
 
 		if(isBrowser){
 			if(window['__ccInitialized']){
@@ -29,15 +49,16 @@ class CryptoConvert {
 			window['__ccInitialized'] = true;
 		}
 		
+		this.#setExtendedOptions(options);
 		this.worker = new PricesWorker(options);
 		this.workerReady = this.worker.run();
 		this.internalMethods = Object.getOwnPropertyNames(CryptoConvert.prototype);
 		
 		Promise.resolve(this.workerReady).then(()=>{
-			this.populate();
+			this.#populate();
 
 			this.worker.onCryptoListRefresh = ()=>{
-				this.populate();
+				this.#populate();
 			}
 		});
 	}
@@ -45,7 +66,7 @@ class CryptoConvert {
 	/**
 	 * Get a symbol price from tickers
 	 */
-	protected getPrice(coin: string, to='USD'){
+	#getPrice(coin: string, to='USD'){
 	
 		var customResult = customWorkers.ticker[coin+to] || (
 			customWorkers.ticker[to + coin] ? 1/customWorkers.ticker[to + coin] : null
@@ -61,7 +82,7 @@ class CryptoConvert {
 	/**
 	 * This is where conversion happens.
 	 */
-	private wrapper(coin: string, currency: string){
+	#wrapper(coin: string, currency: string){
 		var coin = coin;
 		var toCurrency = currency;
 
@@ -92,11 +113,11 @@ class CryptoConvert {
 		
 			//Crypto to Crypto
 			if(cryptoCurrenciesList.includes(coin) && cryptoCurrenciesList.includes(toCurrency)){
-				let exchangePrice = this.getPrice(coin, toCurrency) ||
-					this.wrapper("USD", toCurrency)(this.wrapper(coin, "USD")(1) as number);
+				let exchangePrice = this.#getPrice(coin, toCurrency) ||
+					this.#wrapper("USD", toCurrency)(this.#wrapper(coin, "USD")(1) as number);
 
 
-				return formatNumber(exchangePrice * fromAmount, 8); 
+				return formatNumber(exchangePrice * fromAmount, this.precision.crypto); 
 			}
 
 			//Fiat to Fiat
@@ -104,16 +125,16 @@ class CryptoConvert {
 
 				return formatNumber(
 					((fromAmount / fiatCurrencies[coin]) * fiatCurrencies[toCurrency]),
-					4
+					this.precision.fiat
 				);
 			}
 
 
 			//Crypto->Fiat || Crypto->BTC->Fiat
 			var getCryptoPrice = (function (coin: string) {
-				var coinPrice = this.getPrice(coin) ||
-					this.wrapper("BTC","USD")(this.getPrice(coin,"BTC") as number) || 
-					this.wrapper("ETH","USD")(this.getPrice(coin,"ETH") as number);
+				var coinPrice = this.#getPrice(coin) ||
+					this.#wrapper("BTC","USD")(this.#getPrice(coin,"BTC") as number) || 
+					this.#wrapper("ETH","USD")(this.#getPrice(coin,"ETH") as number);
 
 				return coinPrice;
 			}).bind(this);
@@ -122,14 +143,14 @@ class CryptoConvert {
 			if(fiatCurrencies[toCurrency]){
 				let usdPrice = getCryptoPrice(coin);
 				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[toCurrency]; //Convert USD to chosen FIAT
-				return formatNumber(exchangePrice * fromAmount, 8);
+				return formatNumber(exchangePrice * fromAmount, this.precision.crypto);
 			}
 		
 			//Fiat to Crypto
 			if(fiatCurrencies[coin]){
 				let usdPrice = getCryptoPrice(toCurrency);
 				let exchangePrice = (usdPrice / fiatCurrencies['USD']) * fiatCurrencies[coin]; //Convert USD to chosen FIAT
-				return formatNumber(fromAmount / exchangePrice, 8);
+				return formatNumber(fromAmount / exchangePrice, this.precision.crypto);
 			}
 		
 			return null;
@@ -138,7 +159,7 @@ class CryptoConvert {
 	}
 
 	
-	private isSafeKey(key: string){
+	#isSafeKey(key: string){
 
 		const functionProto = function(){};
 
@@ -148,11 +169,21 @@ class CryptoConvert {
 			!functionProto[key]
 		);
 	}
+
+	#setExtendedOptions(options: ExtendedOptions){
+		if(options.precision){
+			for(const precisionKey in options.precision){
+				if(["crypto","fiat"].includes(precisionKey) && typeof options.precision[precisionKey] == "number"){
+					this.precision[precisionKey] = options.precision[precisionKey]
+				}
+			}
+		}
+	}
 	
 	/**
 	 * Recursively creates the conversion wrapper functions for all the currencies.
 	 */
-	private populate () {
+	#populate () {
 		let types = '';
 
 		//Generate typescript interface
@@ -165,7 +196,7 @@ class CryptoConvert {
 			var coin = all_currencies[i];
 			
 
-			if(!coin || typeof coin !== "string" || !this.isSafeKey(coin)){
+			if(!coin || typeof coin !== "string" || !this.#isSafeKey(coin)){
 				continue;
 			}
 
@@ -179,11 +210,11 @@ class CryptoConvert {
 			for(var a = 0; a < all_currencies.length; a++) {
 				var currency = all_currencies[a];
 
-				if(!currency || typeof currency !== "string" || !this.isSafeKey(coin)){
+				if(!currency || typeof currency !== "string" || !this.#isSafeKey(coin)){
 					continue;
 				}
 
-				this[coin][currency] = this.wrapper(coin, currency);
+				this[coin][currency] = this.#wrapper(coin, currency);
 
 				types += `\n\t\t'${currency.replace(/\'/g,"\\'")}': amount,`;
 			}
@@ -252,11 +283,13 @@ class CryptoConvert {
 	get ticker(){
 		return this.worker.data;
 	}
-
+	
 	/**
 	 * Update options
 	 */
-	setOptions(options: Options){
+	setOptions(options: ExtendedOptions){
+
+		this.#setExtendedOptions(options);
 
 		const workerIntervalChanged = (options.cryptoInterval || options.fiatInterval) && (
 			options.cryptoInterval !== this.worker.options.cryptoInterval ||
@@ -285,7 +318,7 @@ class CryptoConvert {
 				await this.worker.restart();
 
 				if(options.listLimit){
-					this.populate();
+					this.#populate();
 				}
 
 				return this.worker;
@@ -296,6 +329,7 @@ class CryptoConvert {
 
 		return this.worker.setOptions(options);
 	}
+
 
 	/**
 	 * Stop the worker. 
@@ -344,7 +378,7 @@ class CryptoConvert {
 			customWorkers.addCurrency.apply(customWorkers, [base, ...rest])
 		).then(()=>{
 			if(this.worker.isReady){
-				this.populate();
+				this.#populate();
 			}
 		});
 	};
@@ -354,7 +388,7 @@ class CryptoConvert {
 	 */
 	removeCurrency(base: string, quote?: string){
 
-		if(customWorkers.list.includes(base) && this.isSafeKey(base)){
+		if(customWorkers.list.includes(base) && this.#isSafeKey(base)){
 			delete this[base];
 
 			const all_currencies = this.worker.list.crypto.concat(this.worker.list.fiat, customWorkers.list);

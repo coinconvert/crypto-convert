@@ -59,7 +59,7 @@ export function formatNumber(n: number | string, decimals?: number){
 
     let s = typeof decimals == "number" ? (n.toFixed(decimals)): n + '';
 
-	let clean = s.match(/\./) ? s.replace(/0+$/g, '').replace(/\.+$/g,'') : s;
+	let clean = s.match(/\./) && !s.match(/[eE]/) ? s.replace(/0+$/g, '').replace(/\.+$/g,'') : s;
 
     return parseFloat(clean);
 }
