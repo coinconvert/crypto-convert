@@ -191,9 +191,10 @@ class CryptoConvert {
 		types +='\nexport interface Pairs {';
 
 		const all_currencies = this.worker.list.crypto.concat(this.worker.list.fiat, customWorkers.list);
+		const all_currencies_unique = all_currencies.filter((v, i)=> all_currencies.indexOf(v) == i);
 
-		for(var i = 0; i < all_currencies.length; i++) {
-			var coin = all_currencies[i];
+		for(var i = 0; i < all_currencies_unique.length; i++) {
+			var coin = all_currencies_unique[i];
 			
 
 			if(!coin || typeof coin !== "string" || !this.#isSafeKey(coin)){
@@ -207,8 +208,8 @@ class CryptoConvert {
 
 			types += `\n\t'${coin.replace(/\'/g,"\\'")}': {`
 
-			for(var a = 0; a < all_currencies.length; a++) {
-				var currency = all_currencies[a];
+			for(var a = 0; a < all_currencies_unique.length; a++) {
+				var currency = all_currencies_unique[a];
 
 				if(!currency || typeof currency !== "string" || !this.#isSafeKey(coin)){
 					continue;
